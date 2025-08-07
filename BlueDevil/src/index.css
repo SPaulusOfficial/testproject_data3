@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-off-white text-black font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #E5E7EB;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #0051D4;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #0025D1;
+  }
+  
+  /* Focus styles */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-open-blue focus:ring-offset-2;
+  }
+  
+  /* Button variants */
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 h-11 rounded-full
+           bg-digital-blue text-white font-bold shadow-sm transition
+           hover:bg-deep-blue-2 focus-ring
+           disabled:bg-off-white disabled:text-gray-400;
+  }
+  
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-6 h-11 rounded-full
+           border border-digital-blue text-digital-blue font-bold
+           hover:bg-digital-blue/20 focus-ring
+           disabled:border-gray-300 disabled:text-gray-400;
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100
+           hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .card-dark {
+    @apply bg-deep-blue-1 text-white rounded-xl shadow-sm;
+  }
+  
+  /* Progress bar */
+  .progress-bar {
+    @apply h-1 bg-gray-200 rounded-full overflow-hidden;
+  }
+  
+  .progress-fill {
+    @apply h-full bg-digital-blue transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.2s ease-in-out;
+  }
+} 
