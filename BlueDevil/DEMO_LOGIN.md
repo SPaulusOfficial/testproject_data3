@@ -1,94 +1,94 @@
 # 🔐 Demo Login - Project Assistant Suite
 
-## 📋 Übersicht
+## 📋 Overview
 
-Die Project Assistant Suite ist jetzt mit einem Demo-Login geschützt. Dies ermöglicht es dir, die UI Demo anderen zu zeigen, ohne dass sie direkten Zugriff auf alle Funktionen haben.
+The Project Assistant Suite is now protected with a demo login. This allows you to show the UI demo to others without giving them direct access to all functions.
 
-## 🔑 Demo-Zugangsdaten
+## 🔑 Demo Access Credentials
 
-**Passwort:** `demo2024` oder `blue`
+**Password:** `demo2024` or `blue`
 
-## 🚀 Wie es funktioniert
+## 🚀 How it Works
 
-### 1. **Login-Seite**
-- Beim ersten Besuch wird automatisch die Login-Seite angezeigt
-- Eingabe des Demo-Passworts erforderlich
-- Nach erfolgreicher Anmeldung wird die Session im Browser gespeichert
+### 1. **Login Page**
+- The login page is automatically displayed on first visit
+- Demo password entry required
+- After successful login, the session is stored in the browser
 
-### 2. **Geschützte Anwendung**
-- Alle Seiten sind hinter dem Login geschützt
-- Session bleibt bestehen bis zum Logout
-- Automatische Weiterleitung zur Login-Seite bei fehlender Authentifizierung
+### 2. **Protected Application**
+- All pages are protected behind the login
+- Session persists until logout
+- Automatic redirect to login page if authentication is missing
 
-### 3. **Logout-Funktion**
-- Logout-Button in der Sidebar (unten)
-- Beendet die Demo-Session
-- Zurück zur Login-Seite
+### 3. **Logout Function**
+- Logout button in the sidebar (bottom)
+- Ends the demo session
+- Returns to login page
 
-## 🛠️ Technische Details
+## 🛠️ Technical Details
 
-### Komponenten
-- `DemoLogin.tsx` - Login-Formular
-- `DemoAuthContext.tsx` - Authentifizierungs-Context
-- `ProtectedRoute.tsx` - Geschützte Route-Wrapper
+### Components
+- `DemoLogin.tsx` - Login form
+- `DemoAuthContext.tsx` - Authentication context
+- `ProtectedRoute.tsx` - Protected route wrapper
 
-### Sicherheit
-- **Lokale Speicherung**: Session wird im localStorage gespeichert
-- **Client-seitig**: Keine Server-Authentifizierung (Demo-Zweck)
-- **Einfach**: Für Demo-Zwecke ausreichend
+### Security
+- **Local Storage**: Session is stored in localStorage
+- **Client-side**: No server authentication (demo purpose)
+- **Simple**: Sufficient for demo purposes
 
-## 🔧 Anpassungen
+## 🔧 Customizations
 
-### Passwort ändern
+### Change Password
 In `src/components/DemoLogin.tsx`:
 ```typescript
 if (password === 'demo2024' || password === 'blue') {
-  // Ändere hier die Passwörter
+  // Change passwords here
 }
 ```
 
-### Login-Design anpassen
-- Styling in `DemoLogin.tsx` anpassen
-- Logo/Branding ändern
-- Farben anpassen
+### Customize Login Design
+- Adjust styling in `DemoLogin.tsx`
+- Change logo/branding
+- Adjust colors
 
 ## 🚀 Deployment
 
 ### GitHub Pages
 ```bash
-# Build erstellen
+# Create build
 npm run build
 
-# Deployen
+# Deploy
 npm run deploy
 ```
 
-### Andere Hosting-Provider
-- Funktioniert mit allen statischen Hosting-Providern
+### Other Hosting Providers
+- Works with all static hosting providers
 - Vercel, Netlify, Firebase Hosting, etc.
 
-## 📱 Demo-URL
+## 📱 Demo URL
 
-Nach dem Deployment:
+After deployment:
 ```
-https://DEIN_USERNAME.github.io/BlueDevil/
+https://YOUR_USERNAME.github.io/BlueDevil/
 ```
 
-## 🎯 Verwendung
+## 🎯 Usage
 
-1. **Demo starten**: URL teilen
-2. **Passwort geben**: `demo2024` oder `blue`
-3. **Demo zeigen**: Alle Funktionen verfügbar
-4. **Demo beenden**: Logout-Button in Sidebar
+1. **Start demo**: Share URL
+2. **Provide password**: `demo2024` or `blue`
+3. **Show demo**: All functions available
+4. **End demo**: Logout button in sidebar
 
-## 🔒 Erweiterte Sicherheit
+## 🔒 Enhanced Security
 
-Für produktive Umgebungen:
-- **Backend-Authentifizierung** implementieren
-- **HTTPS** erzwingen
-- **Rate Limiting** hinzufügen
-- **Session-Management** verbessern
+For production environments:
+- Implement **backend authentication**
+- Enforce **HTTPS**
+- Add **rate limiting**
+- Improve **session management**
 
 ---
 
-**Demo-Login aktiviert!** 🎉 
+**Demo login activated!** 🎉 

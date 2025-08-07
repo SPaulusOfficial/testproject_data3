@@ -1,137 +1,137 @@
-# 🛡️ KI Guardrails – Technisch-funktionaler Rahmen für Agenten und Module
+# 🛡️ AI Guardrails – Technical-Functional Framework for Agents and Modules
 
-Wir entwickeln eine modulare, AI-gestützte Plattform zur Automatisierung von typischen Tätigkeiten im Rahmen von Salesforce-Projekten. Die Project Assistant Suite begleitet den gesamten Projektlebenszyklus – von PreSales über Solution Design bis zu Rollout und Hypercare – und nutzt spezialisierte AI-Agenten zur Extraktion, Strukturierung und Generierung relevanter Artefakte wie Stories, Datenmodelle, Testfälle oder Schulungsunterlagen. Ziel ist es, diese Plattform zunächst intern zur Effizienzsteigerung einzusetzen und später als produktisiertes System im Markt zu etablieren.
+We are developing a modular, AI-powered platform for automating typical activities within Salesforce projects. The Project Assistant Suite accompanies the entire project lifecycle – from PreSales through Solution Design to Rollout and Hypercare – and uses specialized AI agents for extraction, structuring, and generation of relevant artifacts such as stories, data models, test cases, or training materials. The goal is to initially use this platform internally for efficiency improvement and later establish it as a productized system in the market.
 
-Dieses Dokument beschreibt den verbindlichen Rahmen ("Guardrails") für alle KI-gestützten Komponenten innerhalb der Project Assistant Suite. Es definiert, was erlaubt ist, welche Technologien und Methoden verwendet werden dürfen und welche architektonischen sowie sicherheitsrelevanten Leitplanken einzuhalten sind.
-
----
-
-## 1. 🔧 Technologischer Rahmen
-
-* Die Plattform basiert ausschließlich auf **Open Source-Technologien**.
-* Zulässige Programmiersprachen: **Python**, **TypeScript/JavaScript**.
-* Services sind **containerisiert (Docker)** und für **Kubernetes** vorbereitet.
-* Agenten kommunizieren ausschließlich über **REST-APIs oder Message Bus (RabbitMQ)**.
+This document describes the binding framework ("Guardrails") for all AI-powered components within the Project Assistant Suite. It defines what is allowed, which technologies and methods may be used, and which architectural and security-related guidelines must be followed.
 
 ---
 
-## 2. 🧠 KI-Logik & Agentendesign
+## 1. 🔧 Technological Framework
 
-* KI-Funktionalitäten sind in **modulare Agenten** gekapselt.
-* KI-Logik basiert auf **Langchain (Python)** in Kombination mit **Haystack** für RAG.
-* Vektorsuche erfolgt über **Qdrant**, klassische Suche über **Elasticsearch**.
-* KI-Agenten dürfen **keine irreversiblen Systemänderungen** vornehmen (read/write getrennt).
-* Jeder Agent muss über eine **Custom UI oder CLI steuerbar** sein.
-
----
-
-## 3. 🔁 Workflow- und Prozesssteuerung
-
-* Die gesamte Prozesslogik wird in einer **eigenen Workflow Engine auf Basis von FastAPI + Redis** abgebildet.
-* Workflows dürfen nur auf expliziten Triggern (Event oder API) starten.
-* Prozesszustände sind persistent gespeichert und versionierbar.
-* Kein stilles Überspringen von Phasen oder Rückmeldungen erlaubt.
+* The platform is based exclusively on **Open Source technologies**.
+* Permitted programming languages: **Python**, **TypeScript/JavaScript**.
+* Services are **containerized (Docker)** and prepared for **Kubernetes**.
+* Agents communicate exclusively via **REST APIs or Message Bus (RabbitMQ)**.
 
 ---
 
-## 4. 🔐 Sicherheit & Compliance
+## 2. 🧠 AI Logic & Agent Design
 
-* Zugriff wird über **OAuth2/OIDC** gesteuert (z. B. Auth0, Keycloak).
-* Secrets und Tokens werden ausschließlich über **Vault** verwaltet.
-* DSGVO-Vorgaben sind einzuhalten (inkl. Logging, Einwilligungen, Löschbarkeit).
-* **Anonymisierung** erfolgt:
+* AI functionalities are encapsulated in **modular agents**.
+* AI logic is based on **Langchain (Python)** in combination with **Haystack** for RAG.
+* Vector search is performed via **Qdrant**, classical search via **Elasticsearch**.
+* AI agents must **not make irreversible system changes** (read/write separated).
+* Each agent must be **controllable via Custom UI or CLI**.
+
+---
+
+## 3. 🔁 Workflow and Process Control
+
+* The entire process logic is mapped in a **custom Workflow Engine based on FastAPI + Redis**.
+* Workflows may only start on explicit triggers (Event or API).
+* Process states are persistently stored and versionable.
+* No silent skipping of phases or feedback allowed.
+
+---
+
+## 4. 🔐 Security & Compliance
+
+* Access is controlled via **OAuth2/OIDC** (e.g., Auth0, Keycloak).
+* Secrets and tokens are managed exclusively via **Vault**.
+* GDPR requirements must be complied with (incl. logging, consents, deletability).
+* **Anonymization** is performed:
 
   * via RegEx
-  * durch statische/dynamische Platzhalter
-  * optional durch internes LLM zur semantischen Erkennung personenbezogener Inhalte
+  * through static/dynamic placeholders
+  * optionally through internal LLM for semantic recognition of personal data
 
 ---
 
-## 5. 🧭 Datenhaltung & Nachvollziehbarkeit
+## 5. 🧭 Data Management & Traceability
 
-* Alle Artefakte (Stories, Datenmodelle, Releases, Reports) sind versioniert.
-* Änderungen werden über die **Change Engine** mit Graph-Struktur verfolgt.
-* Jeder Agent muss seine Ausgaben speichern und referenzierbar machen (Traceability).
-* Keine Blackbox-Logik ohne Logging erlaubt.
-
----
-
-## 6. 📊 Monitoring & Qualitätssicherung
-
-* Jeder Service meldet Metriken an **Prometheus** und Logs an **Loki**.
-* Fehler werden über **Sentry** erfasst und getrackt.
-* Agentenverhalten wird im UI visualisiert und kann durch User bewertet werden.
-* Keine Agentenentscheidung darf automatisch in Produktion übernommen werden.
+* All artifacts (stories, data models, releases, reports) are versioned.
+* Changes are tracked via the **Change Engine** with graph structure.
+* Each agent must save its outputs and make them referable (Traceability).
+* No blackbox logic without logging allowed.
 
 ---
 
-## 7. ❗ Einschränkungen
+## 6. 📊 Monitoring & Quality Assurance
 
-* Kein direkter Zugriff auf Salesforce-Produktivsysteme ohne Userfreigabe
-* Kein Einsatz von Closed-Source KI-Modellen in der Standardauslieferung
-* Kein Persistieren personenbezogener Rohdaten ohne Anonymisierung
+* Each service reports metrics to **Prometheus** and logs to **Loki**.
+* Errors are captured and tracked via **Sentry**.
+* Agent behavior is visualized in the UI and can be rated by users.
+* No agent decision may be automatically adopted in production.
 
 ---
 
-> Dieses Dokument ist für alle Contributor und Agent-Instanzen bindend. Es darf nur mit Review durch den Security- und AI-Verantwortlichen geändert werden.
+## 7. ❗ Restrictions
+
+* No direct access to Salesforce production systems without user approval
+* No use of closed-source AI models in standard delivery
+* No persistence of personal raw data without anonymization
+
+---
+
+> This document is binding for all contributors and agent instances. It may only be changed with review by the Security and AI responsible person.
 
 
 
-Salesfive – UI Implementation Guidelines
+Salesfive – UI Implementation Guidelines
 
 Copy‑paste this spec directly into your design‑system repository or provide it to an AI coding assistant. It contains every brand‑token, typographic rule and component spec required to recreate Salesfive digital interfaces (web‑app, presentations, landing pages).
 
-1 Grundlayout & Struktur
+1 Basic Layout & Structure
 
-BereichAbmessungen & VerhaltenInhalt / Komponenten
-
-
+AreaDimensions & BehaviorContent / Components
 
 
 
-Linke Side-Bar
 
-• Feste Breite ≈ 260 px • Volle Höhe, dunkler Farbverlauf • Flex-Spalte mit gap-y-4
 
-1. Profil-Avatar (80 px Ø) 2. Name + E-Mail (kleine, graue Schrift) 3. Primäre Navigation (Icon + Label, Hover-Highlight, Active-State) 4. Sekundäre Links (Book a Demo, Settings, Referral)
+Left Side-Bar
+
+• Fixed width ≈ 260 px • Full height, dark gradient • Flex column with gap-y-4
+
+1. Profile Avatar (80 px Ø) 2. Name + Email (small, gray text) 3. Primary Navigation (Icon + Label, Hover-Highlight, Active-State) 4. Secondary Links (Book a Demo, Settings, Referral)
 
 Main-Frame
 
-• Flex-Kolonne, flex-1 • Padding xl (links/rechts 32 px, oben 24 px) • Max-Breite 1440 px, zentriert
+• Flex column, flex-1 • Padding xl (left/right 32 px, top 24 px) • Max-width 1440 px, centered
 
-Header, Cards, Tabs, Tabellen, Modale, Wizards
+Header, Cards, Tabs, Tables, Modals, Wizards
 
-Seitenaufbau
+Page Structure
 
 mermaid
 
-KopierenBearbeiten
+CopyEdit
 
 graph LR A[Side-Bar] --- B[Main-Frame] B --> C[Page Header] C --> D[Content Area]
 
-0 Table of Contents
+0 Table of Contents
 
-Design Tokens (Color)
+Design Tokens (Color)
 
-Typography System
+Typography System
 
-Layout & Grid
+Layout & Grid
 
-Color Application Rules
+Color Application Rules
 
-Component Library
+Component Library
 
-States & UX Patterns
+States & UX Patterns
 
-Datavis (rounded‑bar charts)
+Datavis (rounded‑bar charts)
 
 Accessibility
 
-Code Snippets
+Code Snippets
 
-Implementation Checklist
+Implementation Checklist
 
-1 Design Tokens
+1 Design Tokens
 
 Token
 
@@ -201,9 +201,9 @@ Text on dark backgrounds, icons
 
 Contrast Rule
 
-Use white typography on backgrounds #000058 – #0051D4 (AAA).Use black typography on backgrounds #007DD7 – #00D5DC.
+Use white typography on backgrounds #000058 – #0051D4 (AAA).Use black typography on backgrounds #007DD7 – #00D5DC.
 
-2 Typography System
+2 Typography System
 
 Level
 
@@ -217,55 +217,55 @@ Weight
 
 H1
 
-Helvetica Now
+Helvetica Now
 
 Arial
 
-48 – 70 px (≈5× Body)
+48 – 70 px (≈5× Body)
 
 700
 
 H2
 
-Helvetica Now
+Helvetica Now
 
 Arial
 
-32 px
+32 px
 
 700
 
 H3
 
-Helvetica Now
+Helvetica Now
 
 Arial
 
-24 px
+24 px
 
 700
 
 Body
 
-Helvetica Now
+Helvetica Now
 
 Arial
 
-16 px
+16 px
 
 400
 
 Caption
 
-Helvetica Now
+Helvetica Now
 
 Arial
 
-12 – 14 px
+12 – 14 px
 
 400
 
-†Helvetica Now only on licensed, public marketing touch‑points. Internal apps use Arial Regular/Bold exclusively.
+†Helvetica Now only on licensed, public marketing touch‑points. Internal apps use Arial Regular/Bold exclusively.
 
 @font-face {
   font-family:"HelveticaNow";
@@ -275,15 +275,15 @@ Arial
 }
 body {font-family:"HelveticaNow","Arial","Helvetica",sans-serif;}
 
-3 Layout & Grid
+3 Layout & Grid
 
 Shell
 
-Sidebar: fixed 260 px (desktop) ⇒ collapses to 64 px icon‑rail (< 1024 px).
+Sidebar: fixed 260 px (desktop) ⇒ collapses to 64 px icon‑rail (< 1024 px).
 
-Main Frame: flex‑column, flex-1, padding 32 px 24 px 24 px.
+Main Frame: flex‑column, flex-1, padding 32 px 24 px 24 px.
 
-Max‑width: 1440 px, centered.
+Max‑width: 1440 px, centered.
 
 Breakpoint
 
@@ -291,45 +291,45 @@ Columns
 
 Gutter
 
-≥1536 px (2xl)
+≥1536 px (2xl)
 
 12
 
-32 px
+32 px
 
-≥1280 px (xl)
-
-12
-
-24 px
-
-≥1024 px (lg)
+≥1280 px (xl)
 
 12
 
-24 px
+24 px
 
-≥768 px (md)
+≥1024 px (lg)
+
+12
+
+24 px
+
+≥768 px (md)
 
 8
 
-20 px
+20 px
 
-<768 px (sm)
+<768 px (sm)
 
 4
 
-16 px
+16 px
 
-Sidebar Structure (top → bottom)
+Sidebar Structure (top → bottom)
 
-Avatar 80 px Ø
+Avatar 80 px Ø
 
 Name & email (small, grey)
 
 Primary nav links (icon + label)
 
-Secondary links (Book a Demo, Settings, Referral)
+Secondary links (Book a Demo, Settings, Referral)
 
 Dashboard Skeleton (example)
 
@@ -339,25 +339,25 @@ B --> C[Page Header]
 C --> D[Stats Cards]
 D --> E[Suggestions Grid]
 
-4 Color Application Rules
+4 Color Application Rules
 
 Palette Coverage
 
 Guideline
 
-Black & White
+Black & White
 
-80 – 90 % of any screen.
+80 – 90 % of any screen.
 
-Blue Tones
+Blue Tones
 
-10 – 20 % as highlights (CTA, charts, badges).
+10 – 20 % as highlights (CTA, charts, badges).
 
-Do NOT
+Do NOT
 
 combine multiple mid‑blues in one small area – pick one dominant accent.
 
-5 Component Library
+5 Component Library
 
 Buttons
 
@@ -371,35 +371,35 @@ Disabled
 
 Primary
 
-BG #0025D1, text #FFF
+BG #0025D1, text #FFF
 
-BG #001394
+BG #001394
 
-BG #F7F7F9, text #A0A0A0
+BG #F7F7F9, text #A0A0A0
 
 Ghost
 
-border/text #0025D1
+border/text #0025D1
 
-BG rgba(0,37,209,.08)
+BG rgba(0,37,209,.08)
 
-text/border #C0C4CC
+text/border #C0C4CC
 
 Card
 
-Radius 12 px
+Radius 12 px
 
-Shadow sm (0 1px 2px rgba(0,0,0,.06)) → md on hover.
+Shadow sm (0 1px 2px rgba(0,0,0,.06)) → md on hover.
 
 Stat Card (Dark)
 
-BG #000058, text #FFF, icon badge 20 px Ø Open‑Blue.
+BG #000058, text #FFF, icon badge 20 px Ø Open‑Blue.
 
 Multi‑Select Dropdown
 
-Checkbox + label 14 px.
+Checkbox + label 14 px.
 
-Check icon #00D5DC.
+Check icon #00D5DC.
 
 Scrollbar thumb #0051D4.
 
@@ -419,13 +419,13 @@ Inline table inside each node (columns: Module, Sub‑Module, Technology, Comple
 
 Modal / Wizard
 
-Centered max-w-2xl, radius 20 px.
+Centered max-w-2xl, radius 20 px.
 
-Step indicator bar at top (fill #0025D1).
+Step indicator bar at top (fill #0025D1).
 
 Footer with Back (ghost) & Next (primary, disabled until valid).
 
-6 States & UX Patterns
+6 States & UX Patterns
 
 Pattern
 
@@ -433,21 +433,21 @@ Behaviour
 
 Hover
 
-components raise sm→md shadow or receive 5 % tint.
+components raise sm→md shadow or receive 5 % tint.
 
-Keyboard Focus
+Keyboard Focus
 
 outline:2px solid #00D5DC; outline-offset:2px.
 
-Unsaved Changes
+Unsaved Changes
 
 sticky banner top; optimistic UI on save.
 
 Animations
 
-≤ 200 ms ease-in-out; respect prefers-reduced-motion.
+≤ 200 ms ease-in-out; respect prefers-reduced-motion.
 
-7 Datavis – Rounded‑Bar Charts
+7 Datavis – Rounded‑Bar Charts
 
 .bar--marketing{fill:#0025D1; rx:42%}
 .bar--support  {fill:#001394; rx:42%}
@@ -460,9 +460,9 @@ All bars share identical width; radius set via rx for pill‑shape.
 
 
 
-8 Accessibility Checklist
+8 Accessibility Checklist
 
-Contrast: meet WCAG AA (4.5:1).
+Contrast: meet WCAG AA (4.5:1).
 
 Focus management: trap inside modals, return focus on close.
 
@@ -472,9 +472,9 @@ Motion: reduce for users with prefers-reduced-motion.
 
 ARIA: proper labels for dropdowns and wizard steps.
 
-9 Code Snippets
+9 Code Snippets
 
-Tailwind Primary Button
+Tailwind Primary Button
 
 <button class="inline-flex items-center justify-center
               px-6 h-11 rounded-full
@@ -499,11 +499,11 @@ Vue / React Layout Skeleton (pseudo‑code)
   <SuggestionsGrid />
 </Main>
 
-10 Implementation Checklist
+10 Implementation Checklist
 
 Export tokens to CSS custom properties or Tailwind theme.
 
-Global CSS reset + font‑face.
+Global CSS reset + font‑face.
 
 Atom components (button, input, tag) in Storybook → snapshot tests.
 

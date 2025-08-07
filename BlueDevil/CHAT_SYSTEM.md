@@ -1,61 +1,61 @@
-# 🗨️ Chat-System Dokumentation
+# 🗨️ Chat System Documentation
 
-## Übersicht
+## Overview
 
-Das Chat-System ist ein ausklappbares Chatfenster, das auf allen Seiten der BlueDevil-Plattform verfügbar ist. Es bietet sowohl Text- als auch Spracheingabe und kennt den aktuellen Kontext der Seite, auf der sich der Benutzer befindet.
+The chat system is a collapsible chat window that is available on all pages of the BlueDevil platform. It offers both text and voice input and knows the current context of the page where the user is located.
 
 ## Features
 
-### 🎯 Kontextbewusstsein
-- Das Chat-System erkennt automatisch die aktuelle Seite
-- Kontext-spezifische Antworten basierend auf der Benutzerposition
-- Unterstützung für alle Pre-Sales Workflows und Hauptseiten
+### 🎯 Context Awareness
+- The chat system automatically recognizes the current page
+- Context-specific responses based on user position
+- Support for all Pre-Sales workflows and main pages
 
-### 🎤 Sprachaufnahme
-- Integrierte Sprachaufnahme mit Browser-API
-- Automatische Transkription (simuliert, kann mit echten APIs erweitert werden)
-- Visuelle Feedback-Indikatoren während der Aufnahme
+### 🎤 Voice Recording
+- Integrated voice recording with browser API
+- Automatic transcription (simulated, can be extended with real APIs)
+- Visual feedback indicators during recording
 
-### 💬 Text-Chat
-- Echtzeit-Nachrichtenverlauf
-- Auto-Scroll zu neuen Nachrichten
-- Enter-Taste zum Senden
-- Lade-Indikatoren während AI-Verarbeitung
+### 💬 Text Chat
+- Real-time message history
+- Auto-scroll to new messages
+- Enter key to send
+- Loading indicators during AI processing
 
 ### 🎨 Design
-- Konsistentes Salesfive Design-System
-- Responsive Design
-- Smooth Animationen und Übergänge
-- Fixed Position unten rechts
+- Consistent Salesfive design system
+- Responsive design
+- Smooth animations and transitions
+- Fixed position bottom right
 
-## Technische Architektur
+## Technical Architecture
 
-### Komponenten
+### Components
 
 #### ChatWidget.tsx
-- Hauptkomponente für das Chat-Interface
-- Verwaltet UI-Zustand und Benutzerinteraktionen
-- Integriert VoiceRecorder und Text-Eingabe
+- Main component for chat interface
+- Manages UI state and user interactions
+- Integrates VoiceRecorder and text input
 
 #### VoiceRecorder.tsx
-- Spezialisierte Komponente für Sprachaufnahme
-- Browser-API Integration (MediaRecorder)
-- Fehlerbehandlung für nicht unterstützte Browser
+- Specialized component for voice recording
+- Browser API integration (MediaRecorder)
+- Error handling for unsupported browsers
 
 #### ChatContext.tsx
-- React Context für globalen Chat-Zustand
-- Verwaltet Nachrichten und Kontext
-- Zentrale Logik für AI-Integration
+- React context for global chat state
+- Manages messages and context
+- Central logic for AI integration
 
-### Dateistruktur
+### File Structure
 ```
 src/
 ├── components/
-│   ├── ChatWidget.tsx      # Haupt-Chat-Komponente
-│   └── VoiceRecorder.tsx   # Sprachaufnahme-Komponente
+│   ├── ChatWidget.tsx      # Main chat component
+│   └── VoiceRecorder.tsx   # Voice recording component
 ├── contexts/
-│   └── ChatContext.tsx     # Chat-Zustand-Management
-└── App.tsx                 # ChatProvider Integration
+│   └── ChatContext.tsx     # Chat state management
+└── App.tsx                 # ChatProvider integration
 ```
 
 ## Integration
@@ -84,45 +84,45 @@ import { ChatWidget } from './ChatWidget'
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="flex h-screen bg-off-white">
-      {/* Sidebar und Content */}
+      {/* Sidebar and content */}
       <ChatWidget />
     </div>
   )
 }
 ```
 
-## Kontext-Mapping
+## Context Mapping
 
-Das System erkennt automatisch die folgenden Seiten:
+The system automatically recognizes the following pages:
 
-### Hauptseiten
+### Main Pages
 - `/` → Dashboard
-- `/agents` → Agenten-Verwaltung
-- `/projects` → Projekt-Verwaltung
-- `/workflows` → Workflow-Verwaltung
-- `/settings` → Einstellungen
+- `/agents` → Agent management
+- `/projects` → Project management
+- `/workflows` → Workflow management
+- `/settings` → Settings
 
 ### Pre-Sales Workflows
-- `/pre-sales/knowledge/video-zu-text` → Video zu Text Konvertierung
-- `/pre-sales/knowledge/audio-zu-text` → Audio zu Text Konvertierung
-- `/pre-sales/knowledge/workshops` → Workshop-Management
-- `/pre-sales/knowledge/dokumenten-upload` → Dokumenten-Upload
-- `/pre-sales/project-designer/architektur-sketch` → Architektur-Sketch
-- `/pre-sales/project-designer/stakeholder-rollendefinition` → Stakeholder-Rollendefinition
-- `/pre-sales/project-designer/use-case-mapping` → Use-Case-Mapping
-- `/pre-sales/offer-otter/kostenkalkulation` → Kostenkalkulation
-- `/pre-sales/offer-otter/proposal-draft` → Proposal-Draft
+- `/pre-sales/knowledge/video-zu-text` → Video to text conversion
+- `/pre-sales/knowledge/audio-zu-text` → Audio to text conversion
+- `/pre-sales/knowledge/workshops` → Workshop management
+- `/pre-sales/knowledge/dokumenten-upload` → Document upload
+- `/pre-sales/project-designer/architektur-sketch` → Architecture sketch
+- `/pre-sales/project-designer/stakeholder-rollendefinition` → Stakeholder role definition
+- `/pre-sales/project-designer/use-case-mapping` → Use case mapping
+- `/pre-sales/offer-otter/kostenkalkulation` → Cost calculation
+- `/pre-sales/offer-otter/proposal-draft` → Proposal draft
 
-## AI-Integration
+## AI Integration
 
-### Aktuelle Implementierung
-- Simulierte AI-Antworten basierend auf Kontext
-- Kontext-spezifische Hilfestellungen
-- Deutsche Lokalisierung
+### Current Implementation
+- Simulated AI responses based on context
+- Context-specific assistance
+- German localization
 
-### Erweiterungsmöglichkeiten
+### Extension Possibilities
 ```tsx
-// In ChatContext.tsx - simulateAIResponse Funktion ersetzen
+// In ChatContext.tsx - replace simulateAIResponse function
 const sendToAI = async (text: string, context: any) => {
   const response = await fetch('/api/ai/chat', {
     method: 'POST',
@@ -130,23 +130,23 @@ const sendToAI = async (text: string, context: any) => {
     body: JSON.stringify({
       message: text,
       context: context,
-      // Weitere Parameter für AI-Service
+      // Additional parameters for AI service
     })
   })
   return response.json()
 }
 ```
 
-## Sprachaufnahme-Integration
+## Voice Recording Integration
 
-### Aktuelle Implementierung
+### Current Implementation
 - Browser MediaRecorder API
-- Simulierte Transkription
-- Fehlerbehandlung für nicht unterstützte Browser
+- Simulated transcription
+- Error handling for unsupported browsers
 
-### Erweiterungsmöglichkeiten
+### Extension Possibilities
 ```tsx
-// In VoiceRecorder.tsx - simulateTranscription ersetzen
+// In VoiceRecorder.tsx - replace simulateTranscription
 const sendToSpeechToText = async (audioBlob: Blob) => {
   const formData = new FormData()
   formData.append('audio', audioBlob)
@@ -161,59 +161,59 @@ const sendToSpeechToText = async (audioBlob: Blob) => {
 }
 ```
 
-## Design-System Integration
+## Design System Integration
 
-### Farben
-- `digital-blue` (#0025D1) - Primärfarbe für Buttons
-- `deep-blue-2` (#001394) - Hover-Zustände
-- `open-blue` (#00D5DC) - Akzentfarbe
-- `off-white` (#F7F7F9) - Hintergrund
+### Colors
+- `digital-blue` (#0025D1) - Primary color for buttons
+- `deep-blue-2` (#001394) - Hover states
+- `open-blue` (#00D5DC) - Accent color
+- `off-white` (#F7F7F9) - Background
 
-### Komponenten
-- Konsistente Button-Styles
-- Card-Design für Chat-Fenster
-- Custom Scrollbar
-- Smooth Animationen
+### Components
+- Consistent button styles
+- Card design for chat window
+- Custom scrollbar
+- Smooth animations
 
-## Browser-Kompatibilität
+## Browser Compatibility
 
-### Unterstützt
+### Supported
 - Chrome/Edge (MediaRecorder API)
 - Firefox (MediaRecorder API)
 - Safari (MediaRecorder API)
 
 ### Fallback
-- Nicht unterstützte Browser zeigen deaktivierten Voice-Button
-- Text-Chat funktioniert in allen Browsern
+- Unsupported browsers show disabled voice button
+- Text chat works in all browsers
 
-## Nächste Schritte
+## Next Steps
 
-### Kurzfristig
-1. Integration mit echten AI-Services
-2. Implementierung von Speech-to-Text APIs
-3. Persistierung von Chat-Verläufen
+### Short Term
+1. Integration with real AI services
+2. Implementation of Speech-to-Text APIs
+3. Persistence of chat histories
 
-### Langfristig
-1. Multi-User Chat-Support
-2. Datei-Upload im Chat
-3. Chat-Historie und Suche
-4. Erweiterte AI-Features (Code-Generierung, etc.)
+### Long Term
+1. Multi-user chat support
+2. File upload in chat
+3. Chat history and search
+4. Advanced AI features (code generation, etc.)
 
 ## Troubleshooting
 
-### Häufige Probleme
+### Common Issues
 
-#### Mikrofon-Zugriff verweigert
-- Browser-Berechtigungen prüfen
-- HTTPS erforderlich für MediaRecorder
-- Popup-Blocker deaktivieren
+#### Microphone access denied
+- Check browser permissions
+- HTTPS required for MediaRecorder
+- Disable popup blocker
 
-#### Chat öffnet sich nicht
-- ChatProvider in App.tsx prüfen
-- React Router korrekt konfiguriert
-- Console-Fehler prüfen
+#### Chat doesn't open
+- Check ChatProvider in App.tsx
+- React Router correctly configured
+- Check console errors
 
-#### AI-Antworten funktionieren nicht
-- Network-Tab für API-Calls prüfen
-- AI-Service-Konfiguration prüfen
-- Fallback zu simulierten Antworten 
+#### AI responses not working
+- Check Network tab for API calls
+- Check AI service configuration
+- Fallback to simulated responses 

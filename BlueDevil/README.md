@@ -1,100 +1,100 @@
-# 🛡️ Project Assistant Suite - AI-gestützte Salesforce-Plattform
+# 🛡️ Project Assistant Suite - AI-Powered Salesforce Platform
 
-Eine modulare, AI-gestützte Plattform zur Automatisierung von typischen Tätigkeiten im Rahmen von Salesforce-Projekten. Die Project Assistant Suite begleitet den gesamten Projektlebenszyklus – von PreSales über Solution Design bis zu Rollout und Hypercare – und nutzt spezialisierte AI-Agenten zur Extraktion, Strukturierung und Generierung relevanter Artefakte.
+A modular, AI-powered platform for automating typical activities within Salesforce projects. The Project Assistant Suite accompanies the entire project lifecycle – from PreSales through Solution Design to Rollout and Hypercare – and uses specialized AI agents for extraction, structuring, and generation of relevant artifacts.
 
 ## 🚀 Features
 
-- **AI-Agenten**: Modulare KI-Agenten für verschiedene Projektphasen
-- **Workflow Engine**: Automatisierte Prozesssteuerung mit FastAPI + Redis
-- **Projektverwaltung**: Umfassende Übersicht über alle Salesforce-Projekte
-- **Sicherheit**: OAuth2/OIDC, Vault-Integration, DSGVO-Compliance
-- **Monitoring**: Prometheus, Loki, Sentry Integration
-- **Moderne UI**: React + TypeScript mit Salesfive Design System
+- **AI Agents**: Modular AI agents for various project phases
+- **Workflow Engine**: Automated process control with FastAPI + Redis
+- **Project Management**: Comprehensive overview of all Salesforce projects
+- **Security**: OAuth2/OIDC, Vault integration, GDPR compliance
+- **Monitoring**: Prometheus, Loki, Sentry integration
+- **Modern UI**: React + TypeScript with Salesfive Design System
 
-## 🛠️ Technologie-Stack
+## 🛠️ Technology Stack
 
 ### Frontend
-- **React 18** mit TypeScript
-- **Vite** als Build-Tool
-- **Tailwind CSS** mit Salesfive Design Tokens
-- **React Router** für Navigation
-- **React Query** für State Management
-- **Lucide React** für Icons
+- **React 18** with TypeScript
+- **Vite** as build tool
+- **Tailwind CSS** with Salesfive Design Tokens
+- **React Router** for navigation
+- **React Query** for state management
+- **Lucide React** for icons
 
-### Backend (geplant)
+### Backend (planned)
 - **FastAPI** (Python)
-- **Langchain** für KI-Logik
-- **Haystack** für RAG
-- **Qdrant** für Vektorsuche
-- **Elasticsearch** für klassische Suche
+- **Langchain** for AI logic
+- **Haystack** for RAG
+- **Qdrant** for vector search
+- **Elasticsearch** for classical search
 - **PostgreSQL** + **Redis**
-- **RabbitMQ** für Message Bus
+- **RabbitMQ** for message bus
 
 ### DevOps
-- **Docker** Containerisierung
-- **Kubernetes** Bereitschaft
-- **Prometheus** + **Loki** Monitoring
-- **Sentry** Error Tracking
-- **Vault** Secrets Management
+- **Docker** containerization
+- **Kubernetes** readiness
+- **Prometheus** + **Loki** monitoring
+- **Sentry** error tracking
+- **Vault** secrets management
 
 ## 📦 Installation
 
-### Voraussetzungen
+### Prerequisites
 - Node.js 18+ 
-- npm oder yarn
+- npm or yarn
 
 ### Setup
 ```bash
-# Repository klonen
+# Clone repository
 git clone <repository-url>
 cd project-assistant-suite
 
-# Dependencies installieren
+# Install dependencies
 npm install
 
-# Entwicklungsserver starten
+# Start development server
 npm run dev
 
-# Build für Produktion
+# Build for production
 npm run build
 ```
 
-## 🏗️ Projektstruktur
+## 🏗️ Project Structure
 
 ```
 project-assistant-suite/
 ├── src/
-│   ├── components/          # Wiederverwendbare UI-Komponenten
-│   ├── pages/              # Hauptseiten der Anwendung
+│   ├── components/          # Reusable UI components
+│   ├── pages/              # Main application pages
 │   ├── contexts/           # React Contexts (Auth, etc.)
 │   ├── hooks/              # Custom React Hooks
-│   ├── utils/              # Hilfsfunktionen
-│   ├── types/              # TypeScript Typdefinitionen
-│   ├── App.tsx             # Haupt-App-Komponente
-│   ├── main.tsx            # Einstiegspunkt
-│   └── index.css           # Globale Styles
-├── public/                 # Statische Assets
-├── GeneralKnowledge.md     # Guardrails und Projektregeln
-├── package.json            # Dependencies und Scripts
-├── tailwind.config.js      # Tailwind Konfiguration
-├── tsconfig.json           # TypeScript Konfiguration
-└── vite.config.ts          # Vite Konfiguration
+│   ├── utils/              # Helper functions
+│   ├── types/              # TypeScript type definitions
+│   ├── App.tsx             # Main app component
+│   ├── main.tsx            # Entry point
+│   └── index.css           # Global styles
+├── public/                 # Static assets
+├── GeneralKnowledge.md     # Guardrails and project rules
+├── package.json            # Dependencies and scripts
+├── tailwind.config.js      # Tailwind configuration
+├── tsconfig.json           # TypeScript configuration
+└── vite.config.ts          # Vite configuration
 ```
 
 ## 🎨 Design System
 
-Die UI folgt dem Salesfive Design System mit:
+The UI follows the Salesfive Design System with:
 
-- **Farben**: Digital Blue (#0025D1), Open Blue (#00D5DC), Deep Blue (#000058)
-- **Typografie**: Helvetica Now / Arial
-- **Layout**: 260px Sidebar, 1440px max-width
-- **Komponenten**: Cards, Buttons, Progress Bars, etc.
+- **Colors**: Digital Blue (#0025D1), Open Blue (#00D5DC), Deep Blue (#000058)
+- **Typography**: Helvetica Now / Arial
+- **Layout**: 260px sidebar, 1440px max-width
+- **Components**: Cards, Buttons, Progress Bars, etc.
 
-## 🔧 Entwicklung
+## 🔧 Development
 
-### Umgebungsvariablen
+### Environment Variables
 
-Erstelle eine `.env` Datei im Root-Verzeichnis mit folgenden Variablen:
+Create a `.env` file in the root directory with the following variables:
 
 ```bash
 # Pre Sales Module Control
@@ -102,52 +102,52 @@ Erstelle eine `.env` Datei im Root-Verzeichnis mit folgenden Variablen:
 VITE_PRESALES=false
 ```
 
-### Verfügbare Scripts
+### Available Scripts
 
 ```bash
-npm run dev          # Entwicklungsserver starten
-npm run build        # Produktions-Build
-npm run preview      # Build-Vorschau
-npm run lint         # ESLint ausführen
-npm run lint:fix     # ESLint automatisch beheben
-npm run type-check   # TypeScript Typen prüfen
-npm run test         # Tests ausführen
-npm run storybook    # Storybook starten
+npm run dev          # Start development server
+npm run build        # Production build
+npm run preview      # Build preview
+npm run lint         # Run ESLint
+npm run lint:fix     # Fix ESLint automatically
+npm run type-check   # Check TypeScript types
+npm run test         # Run tests
+npm run storybook    # Start Storybook
 ```
 
-### Code-Style
+### Code Style
 
-- **ESLint** + **Prettier** für konsistente Formatierung
-- **TypeScript** für Typsicherheit
-- **Husky** für Pre-commit Hooks
+- **ESLint** + **Prettier** for consistent formatting
+- **TypeScript** for type safety
+- **Husky** for pre-commit hooks
 
 ## 🛡️ Guardrails
 
-Das Projekt folgt strikten Guardrails für KI-Komponenten:
+The project follows strict guardrails for AI components:
 
-1. **Technologischer Rahmen**: Nur Open Source, Python/TypeScript
-2. **KI-Logik**: Modulare Agenten, Langchain + Haystack
-3. **Workflow-Steuerung**: FastAPI + Redis, explizite Trigger
-4. **Sicherheit**: OAuth2/OIDC, Vault, DSGVO-Compliance
-5. **Datenhaltung**: Versionierung, Change Engine, Traceability
-6. **Monitoring**: Prometheus, Loki, Sentry, User-Feedback
+1. **Technology Framework**: Open Source only, Python/TypeScript
+2. **AI Logic**: Modular agents, Langchain + Haystack
+3. **Workflow Control**: FastAPI + Redis, explicit triggers
+4. **Security**: OAuth2/OIDC, Vault, GDPR compliance
+5. **Data Management**: Versioning, Change Engine, Traceability
+6. **Monitoring**: Prometheus, Loki, Sentry, User feedback
 
-Siehe `GeneralKnowledge.md` für detaillierte Richtlinien.
+See `GeneralKnowledge.md` for detailed guidelines.
 
 ## 🚀 Deployment
 
 ### Docker
 ```bash
-# Image bauen
+# Build image
 docker build -t project-assistant-suite .
 
-# Container starten
+# Start container
 docker run -p 3000:3000 project-assistant-suite
 ```
 
 ### Kubernetes
 ```yaml
-# Deployment-Konfiguration (Beispiel)
+# Deployment configuration (example)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -171,36 +171,36 @@ spec:
 
 ## 📊 Monitoring
 
-- **Prometheus**: Metriken-Sammlung
-- **Loki**: Log-Aggregation
-- **Sentry**: Error Tracking
-- **Grafana**: Dashboards (geplant)
+- **Prometheus**: Metrics collection
+- **Loki**: Log aggregation
+- **Sentry**: Error tracking
+- **Grafana**: Dashboards (planned)
 
-## 🤝 Beitragen
+## 🤝 Contributing
 
-1. Fork das Repository
-2. Erstelle einen Feature-Branch
-3. Führe Tests aus
-4. Erstelle einen Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Run tests
+4. Create a pull request
 
-### Commit-Konventionen
-- `feat:` Neue Features
-- `fix:` Bug-Fixes
-- `docs:` Dokumentation
-- `style:` Code-Formatierung
-- `refactor:` Code-Refactoring
-- `test:` Tests hinzufügen/ändern
+### Commit Conventions
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation
+- `style:` Code formatting
+- `refactor:` Code refactoring
+- `test:` Add/modify tests
 
-## 📄 Lizenz
+## 📄 License
 
-Open Source - siehe LICENSE-Datei für Details.
+Open Source - see LICENSE file for details.
 
 ## 🆘 Support
 
 - **Issues**: GitHub Issues
-- **Dokumentation**: Siehe `GeneralKnowledge.md`
+- **Documentation**: See `GeneralKnowledge.md`
 - **Team**: Salesfive Development Team
 
 ---
 
-**Project Assistant Suite** - Automatisierung von Salesforce-Projekten mit KI 🚀 
+**Project Assistant Suite** - Automating Salesforce projects with AI 🚀 

@@ -1,17 +1,17 @@
-# Meeting Assistant API Dokumentation
+# Meeting Assistant API Documentation
 
-## 📋 Übersicht
+## 📋 Overview
 
-Die Meeting Assistant API ermöglicht die Verwaltung von Meetings und Transkriptionen. Alle Endpunkte erfordern einen API-Key im Header `x-api-key`.
+The Meeting Assistant API enables the management of meetings and transcriptions. All endpoints require an API key in the header `x-api-key`.
 
 **Base URL:** `http://localhost:3221`  
 **API Key:** `test123`
 
 ---
 
-## 🔐 Authentifizierung
+## 🔐 Authentication
 
-Alle API-Aufrufe erfordern den API-Key im Header:
+All API calls require the API key in the header:
 
 ```http
 x-api-key: test123
@@ -19,9 +19,9 @@ x-api-key: test123
 
 ---
 
-## 📊 Datenbank Schema
+## 📊 Database Schema
 
-### Meetings Tabelle
+### Meetings Table
 ```sql
 CREATE TABLE meetings (
   id UUID PRIMARY KEY,
@@ -32,27 +32,27 @@ CREATE TABLE meetings (
 );
 ```
 
-### Transcripts Tabelle
+### Transcripts Table
 ```sql
 CREATE TABLE transcripts (
   id UUID PRIMARY KEY,
   meeting_id UUID REFERENCES meetings(id),
-  audio_type VARCHAR(50), -- 'tab' oder 'microphone'
+  audio_type VARCHAR(50), -- 'tab' or 'microphone'
   transcript TEXT,
   audio_file VARCHAR(255),
   audio_size INTEGER,
   chunk_start_time TIMESTAMP,
   chunk_end_time TIMESTAMP,
-  chunk_duration INTEGER, -- in Millisekunden
+  chunk_duration INTEGER, -- in milliseconds
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
 
 ---
 
-## 🚀 API Endpunkte
+## 🚀 API Endpoints
 
-### 1. Meeting erstellen
+### 1. Create Meeting
 
 **POST** `/meetings`
 
@@ -60,7 +60,7 @@ CREATE TABLE transcripts (
 ```json
 {
   "title": "Team Meeting",
-  "description": "Wöchentliches Team-Update"
+  "description": "Weekly Team Update"
 }
 ```
 
@@ -69,23 +69,23 @@ CREATE TABLE transcripts (
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "title": "Team Meeting",
-  "description": "Wöchentliches Team-Update",
+  "description": "Weekly Team Update",
   "created_at": "2025-07-27T19:15:00.000Z",
   "updated_at": "2025-07-27T19:15:00.000Z"
 }
 ```
 
-**cURL Beispiel:**
+**cURL Example:**
 ```bash
 curl -X POST http://localhost:3221/meetings \
   -H "Content-Type: application/json" \
   -H "x-api-key: test123" \
-  -d '{"title": "Team Meeting", "description": "Wöchentliches Team-Update"}'
+  -d '{"title": "Team Meeting", "description": "Weekly Team Update"}'
 ```
 
 ---
 
-### 2. Alle Meetings abrufen
+### 2. Get All Meetings
 
 **GET** `/meetings`
 
@@ -95,7 +95,7 @@ curl -X POST http://localhost:3221/meetings \
   {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "title": "Team Meeting",
-    "description": "Wöchentliches Team-Update",
+    "description": "Weekly Team Update",
     "created_at": "2025-07-27T19:15:00.000Z",
     "updated_at": "2025-07-27T19:15:00.000Z",
     "transcript_count": "5"
@@ -103,7 +103,7 @@ curl -X POST http://localhost:3221/meetings \
   {
     "id": "660e8400-e29b-41d4-a716-446655440001",
     "title": "Test Meeting",
-    "description": "Ein Test-Meeting",
+    "description": "A test meeting",
     "created_at": "2025-07-27T19:20:00.000Z",
     "updated_at": "2025-07-27T19:20:00.000Z",
     "transcript_count": "0"
@@ -111,7 +111,7 @@ curl -X POST http://localhost:3221/meetings \
 ]
 ```
 
-**cURL Beispiel:**
+**cURL Example:**
 ```bash
 curl -X GET http://localhost:3221/meetings \
   -H "x-api-key: test123"
@@ -119,7 +119,7 @@ curl -X GET http://localhost:3221/meetings \
 
 ---
 
-### 3. Spezifisches Meeting mit Transkripten abrufen
+### 3. Get Specific Meeting with Transcripts
 
 **GET** `/meetings/:id`
 
@@ -128,14 +128,14 @@ curl -X GET http://localhost:3221/meetings \
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "title": "Team Meeting",
-  "description": "Wöchentliches Team-Update",
+  "description": "Weekly Team Update",
   "created_at": "2025-07-27T19:15:00.000Z",
   "updated_at": "2025-07-27T19:15:00.000Z",
   "transcripts": [
     {
       "id": "770e8400-e29b-41d4-a716-446655440002",
       "audio_type": "tab",
-      "transcript": "Das Wort Matratze kommt aus dem Arabischen und bezeichnet ursprünglich ein Bodenkissen.",
+      "transcript": "The word mattress comes from Arabic and originally refers to a floor cushion.",
       "audio_file": "debug-audio-tab-1753644892399.webm",
       "audio_size": 319907,
       "chunk_start_time": "2025-07-27T19:34:32.496Z",
@@ -146,7 +146,7 @@ curl -X GET http://localhost:3221/meetings \
     {
       "id": "880e8400-e29b-41d4-a716-446655440003",
       "audio_type": "microphone",
-      "transcript": "Ich kann mich noch an meine Jugend erinnern, da hatten wir zumeist dreiteilige Matratzen.",
+      "transcript": "I can still remember my youth, when we mostly had three-part mattresses.",
       "audio_file": "debug-audio-microphone-1753644952399.webm",
       "audio_size": 280889,
       "chunk_start_time": "2025-07-27T19:35:32.492Z",
@@ -158,7 +158,7 @@ curl -X GET http://localhost:3221/meetings \
 }
 ```
 
-**cURL Beispiel:**
+**cURL Example:**
 ```bash
 curl -X GET "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: test123"
@@ -166,7 +166,7 @@ curl -X GET "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440000
 
 ---
 
-### 4. Meeting löschen
+### 4. Delete Meeting
 
 **DELETE** `/meetings/:id`
 
@@ -177,7 +177,7 @@ curl -X GET "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-**cURL Beispiel:**
+**cURL Example:**
 ```bash
 curl -X DELETE "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: test123"
@@ -185,13 +185,13 @@ curl -X DELETE "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440
 
 ---
 
-### 5. Transkripte durchsuchen
+### 5. Search Transcripts
 
 **GET** `/search?q=term&meetingId=optional`
 
-**Parameter:**
-- `q` (required): Suchbegriff
-- `meetingId` (optional): Spezifisches Meeting für die Suche
+**Parameters:**
+- `q` (required): Search term
+- `meetingId` (optional): Specific meeting for search
 
 **Response (200):**
 ```json
@@ -201,7 +201,7 @@ curl -X DELETE "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440
     "meeting_title": "Team Meeting",
     "transcript_id": "770e8400-e29b-41d4-a716-446655440002",
     "audio_type": "tab",
-    "transcript": "Das Wort Matratze kommt aus dem Arabischen und bezeichnet ursprünglich ein Bodenkissen.",
+    "transcript": "The word mattress comes from Arabic and originally refers to a floor cushion.",
     "chunk_start_time": "2025-07-27T19:34:32.496Z",
     "chunk_end_time": "2025-07-27T19:34:52.393Z",
     "created_at": "2025-07-27T19:34:54.244Z"
@@ -209,20 +209,20 @@ curl -X DELETE "http://localhost:3221/meetings/550e8400-e29b-41d4-a716-446655440
 ]
 ```
 
-**cURL Beispiele:**
+**cURL Examples:**
 ```bash
-# Suche in allen Transkripten
-curl -X GET "http://localhost:3221/search?q=Matratze" \
+# Search in all transcripts
+curl -X GET "http://localhost:3221/search?q=mattress" \
   -H "x-api-key: test123"
 
-# Suche in spezifischem Meeting
-curl -X GET "http://localhost:3221/search?q=Matratze&meetingId=550e8400-e29b-41d4-a716-446655440000" \
+# Search in specific meeting
+curl -X GET "http://localhost:3221/search?q=mattress&meetingId=550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: test123"
 ```
 
 ---
 
-### 6. Audio transkribieren (Chrome Extension)
+### 6. Transcribe Audio (Chrome Extension)
 
 **POST** `/whisper`
 
@@ -239,13 +239,13 @@ x-meeting-id: 550e8400-e29b-41d4-a716-446655440000
 
 **Request Body:**
 ```
-Multipart form data mit audio file
+Multipart form data with audio file
 ```
 
 **Response (200):**
 ```json
 {
-  "transcript": "Das Wort Matratze kommt aus dem Arabischen und bezeichnet ursprünglich ein Bodenkissen.",
+  "transcript": "The word mattress comes from Arabic and originally refers to a floor cushion.",
   "meeting_id": "550e8400-e29b-41d4-a716-446655440000",
   "saved_to_db": true
 }
@@ -253,12 +253,12 @@ Multipart form data mit audio file
 
 ---
 
-## 🔍 Frontend Integration Beispiele
+## 🔍 Frontend Integration Examples
 
 ### JavaScript/Fetch API
 
 ```javascript
-// Alle Meetings abrufen
+// Get all meetings
 async function getMeetings() {
   const response = await fetch('http://localhost:3221/meetings', {
     headers: {
@@ -268,7 +268,7 @@ async function getMeetings() {
   return await response.json();
 }
 
-// Meeting mit Transkripten abrufen
+// Get meeting with transcripts
 async function getMeeting(id) {
   const response = await fetch(`http://localhost:3221/meetings/${id}`, {
     headers: {
@@ -278,7 +278,7 @@ async function getMeeting(id) {
   return await response.json();
 }
 
-// Neues Meeting erstellen
+// Create new meeting
 async function createMeeting(title, description) {
   const response = await fetch('http://localhost:3221/meetings', {
     method: 'POST',
@@ -291,7 +291,7 @@ async function createMeeting(title, description) {
   return await response.json();
 }
 
-// Transkripte durchsuchen
+// Search transcripts
 async function searchTranscripts(query, meetingId = null) {
   const url = meetingId 
     ? `http://localhost:3221/search?q=${encodeURIComponent(query)}&meetingId=${meetingId}`
@@ -306,7 +306,7 @@ async function searchTranscripts(query, meetingId = null) {
 }
 ```
 
-### React Hook Beispiel
+### React Hook Example
 
 ```javascript
 import { useState, useEffect } from 'react';
@@ -343,7 +343,7 @@ const useMeetings = () => {
 
 ---
 
-## ⚠️ Fehlerbehandlung
+## ⚠️ Error Handling
 
 ### 401 Unauthorized
 ```json
@@ -375,29 +375,29 @@ const useMeetings = () => {
 
 ---
 
-## 📝 Hinweise
+## 📝 Notes
 
-1. **Zeitstempel:** Alle Zeitstempel sind im ISO 8601 Format (UTC)
-2. **UUIDs:** Alle IDs sind UUID v4 Format
-3. **Audio-Typen:** `tab` für Tab-Audio, `microphone` für Mikrofon-Audio
-4. **Chunk-Duration:** In Millisekunden
-5. **Audio-Size:** In Bytes
+1. **Timestamps:** All timestamps are in ISO 8601 format (UTC)
+2. **UUIDs:** All IDs are UUID v4 format
+3. **Audio Types:** `tab` for tab audio, `microphone` for microphone audio
+4. **Chunk Duration:** In milliseconds
+5. **Audio Size:** In bytes
 
 ---
 
 ## 🚀 Quick Start
 
-1. **Server starten:**
+1. **Start server:**
    ```bash
    node server.js
    ```
 
-2. **API testen:**
+2. **Test API:**
    ```bash
    curl -X GET http://localhost:3221/meetings -H "x-api-key: test123"
    ```
 
-3. **Frontend integrieren:**
-   - Verwende die JavaScript-Beispiele oben
-   - Ersetze `test123` mit deinem API-Key
-   - Passe die Base URL an deine Umgebung an 
+3. **Integrate frontend:**
+   - Use the JavaScript examples above
+   - Replace `test123` with your API key
+   - Adjust the base URL to your environment 
