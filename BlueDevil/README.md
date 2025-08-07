@@ -21,21 +21,8 @@ A modular, AI-powered platform for automating typical activities within Salesfor
 - **React Query** for state management
 - **Lucide React** for icons
 
-### Backend (planned)
-- **FastAPI** (Python)
-- **Langchain** for AI logic
-- **Haystack** for RAG
-- **Qdrant** for vector search
-- **Elasticsearch** for classical search
-- **PostgreSQL** + **Redis**
-- **RabbitMQ** for message bus
-
 ### DevOps
 - **Docker** containerization
-- **Kubernetes** readiness
-- **Prometheus** + **Loki** monitoring
-- **Sentry** error tracking
-- **Vault** secrets management
 
 ## 📦 Installation
 
