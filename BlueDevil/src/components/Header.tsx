@@ -1,7 +1,8 @@
 import React from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Menu, Bell, Search, LogOut } from 'lucide-react'
+import { Menu, Search, LogOut } from 'lucide-react'
+import { NotificationBell } from './NotificationBell'
 
 interface HeaderProps {
   onMenuToggle: () => void
@@ -62,10 +63,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           </div>
 
           {/* Notifications */}
-          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors focus-ring relative">
-            <Bell size={20} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-digital-blue rounded-full"></span>
-          </button>
+          <NotificationBell />
 
           {/* User Menu */}
           {user && (
