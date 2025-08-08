@@ -9,41 +9,29 @@ This document describes the binding framework ("Guardrails") for all AI-powered 
 ## 1. 🔧 Technological Framework
 
 * The platform is based exclusively on **Open Source technologies**.
-* Permitted programming languages: **Python**, **TypeScript/JavaScript**.
-* Services are **containerized (Docker)** and prepared for **Kubernetes**.
-* Agents communicate exclusively via **REST APIs or Message Bus (RabbitMQ)**.
+* Permitted programming languages: **TypeScript/JavaScript**.
+* Services are **containerized (Docker)**
 
 ---
 
 ## 2. 🧠 AI Logic & Agent Design
 
 * AI functionalities are encapsulated in **modular agents**.
-* AI logic is based on **Langchain (Python)** in combination with **Haystack** for RAG.
-* Vector search is performed via **Qdrant**, classical search via **Elasticsearch**.
-* AI agents must **not make irreversible system changes** (read/write separated).
 * Each agent must be **controllable via Custom UI or CLI**.
 
 ---
 
 ## 3. 🔁 Workflow and Process Control
 
-* The entire process logic is mapped in a **custom Workflow Engine based on FastAPI + Redis**.
 * Workflows may only start on explicit triggers (Event or API).
 * Process states are persistently stored and versionable.
-* No silent skipping of phases or feedback allowed.
 
 ---
 
 ## 4. 🔐 Security & Compliance
 
-* Access is controlled via **OAuth2/OIDC** (e.g., Auth0, Keycloak).
-* Secrets and tokens are managed exclusively via **Vault**.
-* GDPR requirements must be complied with (incl. logging, consents, deletability).
-* **Anonymization** is performed:
+* Access is controlled via **OAuth2/Username&Password**
 
-  * via RegEx
-  * through static/dynamic placeholders
-  * optionally through internal LLM for semantic recognition of personal data
 
 ---
 
@@ -58,18 +46,14 @@ This document describes the binding framework ("Guardrails") for all AI-powered 
 
 ## 6. 📊 Monitoring & Quality Assurance
 
-* Each service reports metrics to **Prometheus** and logs to **Loki**.
-* Errors are captured and tracked via **Sentry**.
-* Agent behavior is visualized in the UI and can be rated by users.
-* No agent decision may be automatically adopted in production.
+
 
 ---
 
 ## 7. ❗ Restrictions
 
-* No direct access to Salesforce production systems without user approval
-* No use of closed-source AI models in standard delivery
-* No persistence of personal raw data without anonymization
+* No direct access to Salesforce production systems
+* No use of closed-source AI models without usage of privacy layer
 
 ---
 
