@@ -47,6 +47,12 @@ const mainMenu = [
     path: '/',
     type: 'link'
   },
+  {
+    label: 'User Management',
+    icon: Users,
+    path: '/user-management',
+    type: 'link'
+  },
   // Knowledge as standalone menu item
   {
     label: 'Knowledge',

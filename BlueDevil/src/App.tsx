@@ -3,13 +3,16 @@ import { Layout } from '@/components/Layout'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ChatProvider } from '@/contexts/ChatContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 import { DemoAuthProvider } from '@/contexts/DemoAuthContext'
+import { UserManagementProvider } from '@/contexts/UserManagementContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Dashboard } from '@/pages/Dashboard'
 import { Agents } from '@/pages/Agents'
 import { Projects } from '@/pages/Projects'
 import { Workflows } from '@/pages/Workflows'
 import { SettingsPage } from '@/pages/Settings'
+import { UserManagement } from '@/pages/UserManagement'
 // Platzhalter-Imports für Pre Sales Funktionen
 import { VideoZuText } from '@/pages/rampup/VideoZuText'
 import { AudioZuText } from '@/pages/rampup/AudioZuText'
@@ -140,7 +143,9 @@ function App() {
       <AuthProvider>
         <ChatProvider>
           <ProjectProvider>
-            <ProtectedRoute>
+            <NotificationProvider>
+              <UserManagementProvider>
+              <ProtectedRoute>
               <Routes>
             <Route path="/" element={
               <PageWithInfo>
@@ -165,6 +170,11 @@ function App() {
             <Route path="/settings" element={
               <PageWithInfo>
                 <SettingsPage />
+              </PageWithInfo>
+            } />
+            <Route path="/user-management" element={
+              <PageWithInfo>
+                <UserManagement />
               </PageWithInfo>
             } />
             <Route path="/pre-sales/knowledge/video-zu-text" element={
@@ -257,6 +267,8 @@ function App() {
 
           </Routes>
             </ProtectedRoute>
+            </UserManagementProvider>
+            </NotificationProvider>
         </ProjectProvider>
       </ChatProvider>
     </AuthProvider>

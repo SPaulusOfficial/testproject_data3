@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { ProjectCard } from '@/components/ProjectCard'
 import { useProject } from '@/contexts/ProjectContext'
+import { NotificationDemo } from '@/components/NotificationDemo'
 
 const TABS = [
   { key: 'all', label: 'Alle Projekte' },
@@ -213,6 +214,11 @@ export const Dashboard: React.FC = () => {
             </div>
           ))
         )}
+      </div>
+
+      {/* Notification Demo */}
+      <div className="mt-8">
+        <NotificationDemo />
       </div>
 
       {/* Schnellaktionen */}
