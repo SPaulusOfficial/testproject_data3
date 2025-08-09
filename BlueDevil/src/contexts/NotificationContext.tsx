@@ -47,117 +47,14 @@ interface NotificationContextType extends NotificationState, NotificationActions
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-// Mock API service for now - will be replaced with real API calls
-class NotificationService {
-  private static instance: NotificationService;
-  private notifications: Notification[] = [];
-  private pollingInterval: NodeJS.Timeout | null = null;
-  private fullRefreshInterval: NodeJS.Timeout | null = null;
-
-  static getInstance(): NotificationService {
-    if (!NotificationService.instance) {
-      NotificationService.instance = new NotificationService();
-    }
-    return NotificationService.instance;
-  }
-
-  async getUserNotifications(userId: string, projectId?: string): Promise<Notification[]> {
-    // Mock implementation - replace with real API call
-    const filteredNotifications = this.notifications.filter(n => 
-      n.userId === userId && 
-      !n.isDeleted &&
-      (!projectId || !n.projectId || n.projectId === projectId)
-    );
-    
-    return filteredNotifications.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }
-
-  async createNotification(notification: Omit<Notification, 'id' | 'createdAt'>): Promise<Notification> {
-    const newNotification: Notification = {
-      ...notification,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-      isRead: false,
-      isDeleted: false
-    };
-    
-    this.notifications.push(newNotification);
-    return newNotification;
-  }
-
-  async markAsRead(userId: string, notificationId: string): Promise<void> {
-    const notification = this.notifications.find(n => n.id === notificationId && n.userId === userId);
-    if (notification) {
-      notification.isRead = true;
-      notification.readAt = new Date();
-    }
-  }
-
-  async markAllAsRead(userId: string): Promise<void> {
-    this.notifications
-      .filter(n => n.userId === userId && !n.isRead && !n.isDeleted)
-      .forEach(n => {
-        n.isRead = true;
-        n.readAt = new Date();
-      });
-  }
-
-  async deleteNotification(userId: string, notificationId: string): Promise<void> {
-    const notification = this.notifications.find(n => n.id === notificationId && n.userId === userId);
-    if (notification) {
-      notification.isDeleted = true;
-      notification.deletedAt = new Date();
-    }
-  }
-
-  async clearAll(userId: string): Promise<void> {
-    this.notifications
-      .filter(n => n.userId === userId && !n.isDeleted)
-      .forEach(n => {
-        n.isDeleted = true;
-        n.deletedAt = new Date();
-      });
-  }
-
-  async getUnreadCount(userId: string): Promise<number> {
-    return this.notifications.filter(n => 
-      n.userId === userId && !n.isRead && !n.isDeleted
-    ).length;
-  }
-
-  startPolling(userId: string, onUpdate: (notifications: Notification[], unreadCount: number) => void) {
-    // Poll for new notifications every 10 seconds
-    this.pollingInterval = setInterval(async () => {
-      const notifications = await this.getUserNotifications(userId);
-      const unreadCount = await this.getUnreadCount(userId);
-      onUpdate(notifications, unreadCount);
-    }, 10000);
-
-    // Full refresh every hour
-    this.fullRefreshInterval = setInterval(async () => {
-      const notifications = await this.getUserNotifications(userId);
-      const unreadCount = await this.getUnreadCount(userId);
-      onUpdate(notifications, unreadCount);
-    }, 3600000);
-  }
-
-  stopPolling() {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
-    if (this.fullRefreshInterval) {
-      clearInterval(this.fullRefreshInterval);
-      this.fullRefreshInterval = null;
-    }
-  }
-}
+import { NotificationService } from '@/services/NotificationService';
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const { currentProject } = useProject();
+  const { activeProjectId, projects } = useProject();
+  
+  // Get current project from activeProjectId
+  const currentProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
   const [state, setState] = useState<NotificationState>({
     notifications: [],
     unreadCount: 0,
@@ -166,6 +63,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   const notificationService = NotificationService.getInstance();
+
+  // Initialize the notification service
+  useEffect(() => {
+    notificationService.initialize().catch(error => {
+      console.error('Failed to initialize notification service:', error);
+    });
+  }, []);
 
   const refreshNotifications = async () => {
     if (!user) return;
@@ -259,7 +163,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Start polling when user is authenticated
   useEffect(() => {
-    if (user) {
+    if (user && user.id) {
+      console.log('🔔 Starting notification polling for user:', user.id);
+      
+      // Ensure notification service has the current token
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        console.log('🔔 Setting token for notification service');
+        // Access the private api property and set token
+        const apiClient = (notificationService as any).api;
+        if (apiClient && typeof apiClient.setToken === 'function') {
+          apiClient.setToken(token);
+        }
+      } else {
+        console.warn('🔔 No auth token found in localStorage');
+      }
+      
       refreshNotifications();
       notificationService.startPolling(user.id, (notifications, unreadCount) => {
         setState(prev => ({
@@ -270,10 +189,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
 
       return () => {
+        console.log('🔔 Stopping notification polling');
         notificationService.stopPolling();
       };
+    } else {
+      console.log('🔔 No user authenticated, skipping notification polling');
     }
-  }, [user, currentProject?.id]);
+  }, [user?.id, currentProject?.id]);
 
   const contextValue: NotificationContextType = {
     ...state,

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { User } from '../types/User';
 import { UserList } from '../components/UserManagement/UserList';
 import { UserForm } from '../components/UserManagement/UserForm';
-import { UserManagementDashboard } from '../components/UserManagement/UserManagementDashboard';
+import { UserOverview } from '../components/UserManagement/UserOverview';
 import { ProjectMembershipManager } from '../components/UserManagement/ProjectMembershipManager';
 import { useUserManagement } from '../contexts/UserManagementContext';
+import { UserManagementGuard } from '../components/PermissionGuard';
+
 
 export const UserManagement: React.FC = () => {
   const { createUser, updateUser, clearError } = useUserManagement();
@@ -45,7 +47,7 @@ export const UserManagement: React.FC = () => {
   };
 
   const handleCancel = () => {
-    setView('list');
+    setView('dashboard');
     setSelectedUser(null);
     clearError();
   };
@@ -54,27 +56,28 @@ export const UserManagement: React.FC = () => {
     switch (view) {
       case 'dashboard':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setView('list')}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  View All Users
-                </button>
-                <button
-                  onClick={() => setView('create')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Add New User
-                </button>
+                      <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setView('list')}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    View All Users
+                  </button>
+                  <button
+                    onClick={() => setView('create')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Add New User
+                  </button>
+                </div>
               </div>
+              
+              {/* User Statistics Overview */}
+              <UserOverview />
             </div>
-            
-            <UserManagementDashboard />
-          </div>
         );
 
       case 'create':
@@ -89,7 +92,7 @@ export const UserManagement: React.FC = () => {
       case 'edit':
         return (
           <UserForm
-            user={selectedUser}
+            user={selectedUser || undefined}
             mode="edit"
             onSubmit={handleEditUser}
             onCancel={handleCancel}
@@ -191,24 +194,7 @@ export const UserManagement: React.FC = () => {
               </div>
             </div>
 
-            {/* Custom Data */}
-            <div className="mt-8 border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Custom Data</h3>
-              {Object.keys(selectedUser.customData).length === 0 ? (
-                <p className="text-gray-500 italic">No custom data defined</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(selectedUser.customData).map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 p-3 rounded">
-                      <label className="block text-sm font-medium text-gray-700">{key}</label>
-                      <p className="text-sm text-gray-900">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+
 
             {/* Metadata */}
             <div className="mt-8 border-t pt-6">
@@ -255,6 +241,8 @@ export const UserManagement: React.FC = () => {
           </div>
         ) : null;
 
+
+
       default:
         return (
           <div className="space-y-6">
@@ -286,8 +274,10 @@ export const UserManagement: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {renderContent()}
-    </div>
+    <UserManagementGuard>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {renderContent()}
+      </div>
+    </UserManagementGuard>
   );
 };

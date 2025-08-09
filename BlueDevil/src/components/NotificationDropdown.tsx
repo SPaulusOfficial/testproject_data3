@@ -10,7 +10,10 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
   const { notifications, markAllAsRead, clearAll, isLoading } = useNotifications();
-  const { currentProject } = useProject();
+  const { activeProjectId, projects } = useProject();
+  
+  // Get current project from activeProjectId
+  const currentProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
 
   // Filter notifications based on current project
   const filteredNotifications = notifications.filter(n => 

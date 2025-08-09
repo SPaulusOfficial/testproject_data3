@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserCreateRequest, UserUpdateRequest, Permission } from '../../types/User';
-import { CustomDataEditor } from './CustomDataEditor';
-import { PermissionMatrix } from './PermissionMatrix';
+
+import { SimplePermissionManager } from './SimplePermissionManager';
 
 interface UserFormProps {
   user?: User;
@@ -28,10 +28,9 @@ export const UserForm: React.FC<UserFormProps> = ({
     confirmPassword: '' // Only for create mode
   });
 
-  const [customData, setCustomData] = useState(user?.customData || {});
-  const [showCustomData, setShowCustomData] = useState(false);
+
   const [showPermissions, setShowPermissions] = useState(false);
-  const [globalPermissions, setGlobalPermissions] = useState<Permission[]>(user?.projectMemberships?.[0]?.permissions || []);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -86,8 +85,7 @@ export const UserForm: React.FC<UserFormProps> = ({
           firstName: formData.firstName,
           lastName: formData.lastName,
           globalRole: formData.globalRole as 'admin' | 'user' | 'guest',
-          password: formData.password,
-          customData
+          password: formData.password
         };
         await onSubmit(createData);
       } else {
@@ -97,8 +95,7 @@ export const UserForm: React.FC<UserFormProps> = ({
           firstName: formData.firstName,
           lastName: formData.lastName,
           globalRole: formData.globalRole as 'admin' | 'user' | 'guest',
-          isActive: formData.isActive,
-          customData
+          isActive: formData.isActive
         };
         await onSubmit(updateData);
       }
@@ -117,12 +114,7 @@ export const UserForm: React.FC<UserFormProps> = ({
     }
   };
 
-  const handleCustomDataChange = (key: string, value: any) => {
-    setCustomData(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
+
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -298,29 +290,7 @@ export const UserForm: React.FC<UserFormProps> = ({
           </div>
         )}
 
-        {/* Custom Data Section */}
-        <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Custom Data</h3>
-            <button
-              type="button"
-              onClick={() => setShowCustomData(!showCustomData)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              {showCustomData ? 'Hide' : 'Show'} Custom Data
-            </button>
-          </div>
-          
-          {showCustomData && (
-            <div className="bg-gray-50 p-4 rounded-md">
-              <CustomDataEditor
-                userId={user?.id || 'new'}
-                data={customData}
-                onClose={() => setShowCustomData(false)}
-              />
-            </div>
-          )}
-        </div>
+
 
         {/* Global Permissions Section */}
         <div className="border-t pt-6">
@@ -337,10 +307,12 @@ export const UserForm: React.FC<UserFormProps> = ({
           
           {showPermissions && (
             <div className="bg-gray-50 p-4 rounded-md">
-              <PermissionMatrix
-                permissions={globalPermissions}
-                onPermissionsChange={setGlobalPermissions}
-                title="Global Permission Matrix"
+              <SimplePermissionManager
+                userId={user?.id || 'new'}
+                onPermissionsUpdate={(permissions) => {
+                  // Handle permission updates
+                  console.log('Permissions updated:', permissions);
+                }}
               />
             </div>
           )}

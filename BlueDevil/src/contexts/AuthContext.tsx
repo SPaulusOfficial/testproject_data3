@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import authService from '../services/AuthService'
+import { Permission } from '../types/User'
 
 interface User {
   id: string
@@ -6,6 +8,7 @@ interface User {
   email: string
   avatar?: string
   role: 'admin' | 'user' | 'agent'
+  permissions?: Permission[]
 }
 
 interface AuthContextType {
@@ -35,19 +38,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate auth check on app load
+    // Check if user is already authenticated
     const checkAuth = async () => {
       try {
-        // Mock user for development
-        const mockUser: User = {
-          id: '1',
-          name: 'Stefan Paulus',
-          email: 'stefan.paulus@salesfive.com',
-          role: 'admin'
+        const token = authService.getAuthToken();
+        if (token) {
+          // Validate token with backend and get current user
+          const response = await fetch('http://localhost:3002/api/debug/token', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const userData = data.user;
+            
+            // Create user object from token data
+            const user: User = {
+              id: userData.userId || userData.id,
+              name: userData.username || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+              email: userData.email,
+              role: (userData.globalRole || userData.role) as 'admin' | 'user' | 'agent',
+              permissions: userData.permissions || []
+            }
+            
+            console.log('🔍 Token validation successful, user:', user);
+            
+            setUser(user);
+          } else {
+            // Token is invalid, clear it
+            authService.logout();
+            setUser(null);
+          }
+        } else {
+          setUser(null);
         }
-        setUser(mockUser)
       } catch (error) {
         console.error('Auth check failed:', error)
+        authService.logout()
+        setUser(null);
       } finally {
         setIsLoading(false)
       }
@@ -59,14 +89,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      // Mock login - replace with actual OAuth2/OIDC implementation
-      const mockUser: User = {
-        id: '1',
-        name: 'Stefan Paulus',
-        email: email,
-        role: 'admin'
+      const result = await authService.login(email, password);
+      
+      // Create user object from login result
+      const user: User = {
+        id: result.user.id,
+        name: result.user.username || `${result.user.firstName || ''} ${result.user.lastName || ''}`.trim(),
+        email: result.user.email,
+        role: result.user.globalRole || result.user.role,
+        permissions: result.user.permissions || []
       }
-      setUser(mockUser)
+      
+      setUser(user)
     } catch (error) {
       console.error('Login failed:', error)
       throw error
@@ -76,8 +110,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const logout = () => {
+    authService.logout()
     setUser(null)
-    // Additional cleanup logic here
   }
 
   const value: AuthContextType = {

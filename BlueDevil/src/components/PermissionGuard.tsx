@@ -1,131 +1,79 @@
 import React from 'react';
-import { usePermissions, PermissionCheck } from '../hooks/usePermissions';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface PermissionGuardProps {
-  children: React.ReactNode;
-  permission: PermissionCheck;
+  permission: string;
+  permissions?: string[];
+  requireAll?: boolean;
   fallback?: React.ReactNode;
-  showFallback?: boolean;
+  children: React.ReactNode;
 }
 
 export const PermissionGuard: React.FC<PermissionGuardProps> = ({
-  children,
   permission,
+  permissions = [],
+  requireAll = false,
   fallback = null,
-  showFallback = false
+  children
 }) => {
-  const { checkPermission } = usePermissions();
-  const hasPermission = checkPermission(permission);
+  const { hasPermission, hasAnyPermission, hasAllPermissions } = usePermissions();
 
-  if (hasPermission) {
-    return <>{children}</>;
-  }
-
-  if (showFallback) {
+  // Check single permission
+  if (permission && !hasPermission(permission)) {
     return <>{fallback}</>;
   }
 
-  return null;
+  // Check multiple permissions
+  if (permissions.length > 0) {
+    const hasAccess = requireAll 
+      ? hasAllPermissions(permissions)
+      : hasAnyPermission(permissions);
+    
+    if (!hasAccess) {
+      return <>{fallback}</>;
+    }
+  }
+
+  return <>{children}</>;
 };
 
-// Specialized permission guards for common use cases
-export const ReadPermissionGuard: React.FC<{
-  children: React.ReactNode;
-  resource: string;
-  projectId?: string;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, resource, projectId, fallback, showFallback }) => (
-  <PermissionGuard
-    permission={{ resource, action: 'read', projectId }}
-    fallback={fallback}
-    showFallback={showFallback}
-  >
+// Convenience components for specific permissions
+export const UserManagementGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: User Management permission required</div> 
+}) => (
+  <PermissionGuard permission="UserManagement" fallback={fallback}>
     {children}
   </PermissionGuard>
 );
 
-export const WritePermissionGuard: React.FC<{
-  children: React.ReactNode;
-  resource: string;
-  projectId?: string;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, resource, projectId, fallback, showFallback }) => (
-  <PermissionGuard
-    permission={{ resource, action: 'write', projectId }}
-    fallback={fallback}
-    showFallback={showFallback}
-  >
+export const ProjectManagementGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: Project Management permission required</div> 
+}) => (
+  <PermissionGuard permission="ProjectManagement" fallback={fallback}>
     {children}
   </PermissionGuard>
 );
 
-export const DeletePermissionGuard: React.FC<{
-  children: React.ReactNode;
-  resource: string;
-  projectId?: string;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, resource, projectId, fallback, showFallback }) => (
-  <PermissionGuard
-    permission={{ resource, action: 'delete', projectId }}
-    fallback={fallback}
-    showFallback={showFallback}
-  >
+export const SystemSettingsGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: System Settings permission required</div> 
+}) => (
+  <PermissionGuard permission="SystemSettings" fallback={fallback}>
     {children}
   </PermissionGuard>
 );
 
-export const ExecutePermissionGuard: React.FC<{
-  children: React.ReactNode;
-  resource: string;
-  projectId?: string;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, resource, projectId, fallback, showFallback }) => (
-  <PermissionGuard
-    permission={{ resource, action: 'execute', projectId }}
-    fallback={fallback}
-    showFallback={showFallback}
-  >
-    {children}
-  </PermissionGuard>
-);
-
-export const AdminGuard: React.FC<{
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, fallback, showFallback }) => {
+export const AdminGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: Admin privileges required</div> 
+}) => {
   const { isAdmin } = usePermissions();
   
-  if (isAdmin) {
-    return <>{children}</>;
-  }
-
-  if (showFallback) {
+  if (!isAdmin) {
     return <>{fallback}</>;
   }
-
-  return null;
-};
-
-export const ProjectAdminGuard: React.FC<{
-  children: React.ReactNode;
-  projectId: string;
-  fallback?: React.ReactNode;
-  showFallback?: boolean;
-}> = ({ children, projectId, fallback, showFallback }) => {
-  const { isProjectAdmin } = usePermissions();
   
-  if (isProjectAdmin(projectId)) {
-    return <>{children}</>;
-  }
-
-  if (showFallback) {
-    return <>{fallback}</>;
-  }
-
-  return null;
+  return <>{children}</>;
 };

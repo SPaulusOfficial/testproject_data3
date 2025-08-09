@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useProject } from '@/contexts/ProjectContext'
-import { useDemoAuth } from '@/contexts/DemoAuthContext'
 import { 
   ChevronDown,
   ChevronRight,
@@ -40,101 +40,104 @@ interface SidebarProps {
 // Environment variable to control Pre Sales visibility
 const PRESALES_ENABLED = import.meta.env.VITE_PRESALES === 'true'
 
-const mainMenu = [
-  {
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    path: '/',
-    type: 'link'
-  },
-  {
-    label: 'User Management',
-    icon: Users,
-    path: '/user-management',
-    type: 'link'
-  },
-  // Knowledge as standalone menu item
-  {
-    label: 'Knowledge',
-    icon: Layers,
-    type: 'accordion',
-    children: [
-      { label: 'Workshops', path: '/pre-sales/knowledge/workshops', icon: Book },
-    ]
-  },
-  // Pre Sales block - only shown if PRESALES_ENABLED is true
-  ...(PRESALES_ENABLED ? [{
-    label: 'Pre Sales',
-    icon: Search,
-    type: 'accordion',
-    children: [
-      {
-        label: 'RfP Question Extraction',
-        icon: FileQuestion,
-        children: [
-          { label: 'Extract Questions from RfPs', path: '/pre-sales/rfp-questions/extract', icon: FileQuestion },
-          { label: 'AI-powered Answers', path: '/pre-sales/rfp-questions/ai-answers', icon: Search },
-        ]
-      },
-      {
-        label: 'Project Designer',
-        icon: PenTool,
-        children: [
-          { label: 'Architecture Sketch', path: '/pre-sales/project-designer/architektur-sketch', icon: PencilRuler },
-          { label: 'Project Plan Sketch', path: '/pre-sales/project-designer/projektplan-sketch', icon: Calendar },
-          { label: 'Stakeholder & Role Definition', path: '/pre-sales/project-designer/stakeholder-rollendefinition', icon: Users },
-        ]
-      }
-    ]
-  }] : []),
-  {
-    label: 'Solution',
-    icon: Lightbulb,
-    type: 'accordion',
-    children: [
-      {
-        label: 'Data Modeling Assist',
-        icon: Layers,
-        children: [
-          { label: 'Data Model Design', path: '/solution/data-modeling/design', icon: PencilRuler },
-        ]
-      },
-      {
-        label: 'Process Mining',
-        icon: Search,
-        children: [
-          { label: 'BPMN Diagram Analysis', path: '/solution/process-mining/bpmn-analysis', icon: FileText },
-        ]
-      }
-    ]
-  },
-  {
-    label: 'Build',
-    icon: Hammer,
-    type: 'accordion',
-    children: [
-      {
-        label: 'Data Model Setup',
-        icon: Database,
-        path: '/build/data-model-setup',
-      }
-    ]
-  }
-]
-
 
 
 export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
   const location = useLocation()
   const { user } = useAuth()
+  const { canAccessUserManagement, canAccessProjectManagement, canAccessSystemSettings } = usePermissions()
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
   const [openSub, setOpenSub] = useState<string | null>(null)
-  const { activeProjectId, setActiveProjectId, projects } = useProject()
+  const { currentProject, availableProjects } = useProject()
   const [showProjectModal, setShowProjectModal] = useState(false)
-  const { logout } = useDemoAuth()
+  const { logout } = useAuth()
+
+  // Define menu items inside the component to access permissions
+  const menuItems = [
+    {
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      path: '/',
+      type: 'link'
+    },
+    // User Management - only shown if user has permission
+    ...(canAccessUserManagement ? [{
+      label: 'User Management',
+      icon: Users,
+      path: '/user-management',
+      type: 'link'
+    }] : []),
+    // Knowledge as standalone menu item
+    {
+      label: 'Knowledge',
+      icon: Layers,
+      type: 'accordion',
+      children: [
+        { label: 'Workshops', path: '/pre-sales/knowledge/workshops', icon: Book },
+      ]
+    },
+    // Pre Sales block - only shown if PRESALES_ENABLED is true
+    ...(PRESALES_ENABLED ? [{
+      label: 'Pre Sales',
+      icon: Search,
+      type: 'accordion',
+      children: [
+        {
+          label: 'RfP Question Extraction',
+          icon: FileQuestion,
+          children: [
+            { label: 'Extract Questions from RfPs', path: '/pre-sales/rfp-questions/extract', icon: FileQuestion },
+            { label: 'AI-powered Answers', path: '/pre-sales/rfp-questions/ai-answers', icon: Search },
+          ]
+        },
+        {
+          label: 'Project Designer',
+          icon: PenTool,
+          children: [
+            { label: 'Architecture Sketch', path: '/pre-sales/project-designer/architektur-sketch', icon: PencilRuler },
+            { label: 'Project Plan Sketch', path: '/pre-sales/project-designer/projektplan-sketch', icon: Calendar },
+            { label: 'Stakeholder & Role Definition', path: '/pre-sales/project-designer/stakeholder-rollendefinition', icon: Users },
+          ]
+        }
+      ]
+    }] : []),
+    {
+      label: 'Solution',
+      icon: Lightbulb,
+      type: 'accordion',
+      children: [
+        {
+          label: 'Data Modeling Assist',
+          icon: Layers,
+          children: [
+            { label: 'Data Model Design', path: '/solution/data-modeling/design', icon: PencilRuler },
+          ]
+        },
+        {
+          label: 'Process Mining',
+          icon: Search,
+          children: [
+            { label: 'BPMN Diagram Analysis', path: '/solution/process-mining/bpmn-analysis', icon: FileText },
+          ]
+        }
+      ]
+    },
+    {
+      label: 'Build',
+      icon: Hammer,
+      type: 'accordion',
+      children: [
+        {
+          label: 'Data Model Setup',
+          icon: Database,
+          path: '/build/data-model-setup',
+        }
+      ]
+    }
+  ]
 
   // Active project object
-  const activeProject = projects.find(p => p.id === activeProjectId)
+  const activeProject = currentProject
 
   // Abbreviation for project names (first letters)
   const getProjectShortName = (name: string) => {
@@ -168,11 +171,12 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
               />
               <div className="text-white text-base font-semibold">{user.name}</div>
               <div className="text-white/70 text-xs truncate">{user.email}</div>
+
             </div>
           )}
 
           {/* Active Project */}
-          {!collapsed && activeProject && (
+          {!collapsed && currentProject && (
             <div className="px-4 py-4 border-b border-white/10">
               <button
                 onClick={() => setShowProjectModal(true)}
@@ -180,9 +184,9 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
               >
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-xs font-bold">
-                    {getProjectShortName(activeProject.name)}
+                    {getProjectShortName(currentProject.name)}
                   </div>
-                  <span className="truncate text-xs">{activeProject.name}</span>
+                  <span className="truncate text-xs">{currentProject.name}</span>
                 </div>
                 <ChevronDownIcon size={16} />
               </button>
@@ -192,7 +196,7 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
           {/* Accordion Navigation */}
           <nav className="flex-1 py-4">
             <ul className="space-y-2">
-              {mainMenu.map((item) => {
+              {menuItems.map((item) => {
                 if (item.type === 'link' && item.path) {
                   const Icon = item.icon
                   return (

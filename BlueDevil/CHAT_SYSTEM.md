@@ -2,7 +2,7 @@
 
 ## Overview
 
-The chat system is a collapsible chat window that is available on all pages of the BlueDevil platform. It offers both text and voice input and knows the current context of the page where the user is located.
+The chat system is a collapsible chat window that is available on all pages of the platform. It offers both text and voice input and knows the current context of the page where the user is located.
 
 ## Features
 

@@ -1,0 +1,51 @@
+# Salesfive Platform Permission Sets
+# Predefined permission packages for different user roles
+
+# Full Administrator - Complete system access
+[FullAdministrator]
+UserManagement
+UserProfile
+UserRoles
+UserPermissions
+ProjectManagement
+ProjectCreation
+ProjectDeletion
+ProjectMembers
+SystemSettings
+SystemConfiguration
+SystemMonitoring
+SystemLogs
+Notifications
+NotificationSettings
+NotificationTemplates
+AuditLogs
+SecuritySettings
+AccessControl
+KnowledgeBase
+WorkshopManagement
+APIAccess
+
+# User Management Administrator - Can manage users but not system settings
+[UserManagementAdministrator]
+UserManagement
+UserProfile
+UserRoles
+UserPermissions
+ProjectManagement
+ProjectCreation
+ProjectMembers
+Notifications
+NotificationSettings
+AuditLogs
+KnowledgeBase
+WorkshopManagement
+
+# Project Administrator - Can manage projects and their data
+[ProjectAdministrator]
+ProjectManagement
+ProjectCreation
+ProjectMembers
+Notifications
+NotificationSettings
+KnowledgeBase
+WorkshopManagement

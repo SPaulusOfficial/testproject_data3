@@ -1,12 +1,13 @@
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ChatProvider } from '@/contexts/ChatContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
-import { DemoAuthProvider } from '@/contexts/DemoAuthContext'
+import { SessionProvider } from '@/contexts/SessionContext'
+
 import { UserManagementProvider } from '@/contexts/UserManagementContext'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { ProtectedRouteWrapper } from '@/components/ProtectedRouteWrapper'
 import { Dashboard } from '@/pages/Dashboard'
 import { Agents } from '@/pages/Agents'
 import { Projects } from '@/pages/Projects'
@@ -30,6 +31,11 @@ import ProcessMiningDemo from '@/pages/solution/ProcessMiningDemo';
 import SolutionDashboardDemo from '@/pages/solution/SolutionDashboardDemo';
 import DataModelSetup from '@/pages/build/DataModelSetup';
 import { DashboardInfoButtons } from '@/components/DashboardInfoButtons'
+import { NotificationDemoPage } from '@/pages/NotificationDemo'
+import UserProfilePage from '@/pages/UserProfilePage'
+import LoginForm from '@/components/LoginForm'
+import SessionDemo from '@/pages/SessionDemo'
+import NavigationTracker from '@/components/NavigationTracker'
 
 // Wrapper-Komponente für Info-Buttons
 const PageWithInfo = ({ children }: { children: React.ReactNode }) => {
@@ -139,15 +145,21 @@ const PageWithInfo = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <DemoAuthProvider>
+    <SessionProvider>
       <AuthProvider>
         <ChatProvider>
           <ProjectProvider>
             <NotificationProvider>
               <UserManagementProvider>
-              <ProtectedRoute>
-              <Routes>
+            <ProtectedRouteWrapper>
+            {/* <NavigationTracker /> */}
+            <Routes>
             <Route path="/" element={
+              <PageWithInfo>
+                <Dashboard />
+              </PageWithInfo>
+            } />
+            <Route path="/dashboard" element={
               <PageWithInfo>
                 <Dashboard />
               </PageWithInfo>
@@ -255,6 +267,28 @@ function App() {
                 <DataModelSetup />
               </PageWithInfo>
             } />
+            {/* Notification Demo */}
+            <Route path="/notification-demo" element={
+              <PageWithInfo>
+                <NotificationDemoPage />
+              </PageWithInfo>
+            } />
+            {/* Login Route */}
+            <Route path="/login" element={
+              <LoginForm />
+            } />
+            {/* User Profile */}
+            <Route path="/profile" element={
+              <PageWithInfo>
+                <UserProfilePage />
+              </PageWithInfo>
+            } />
+            {/* Session Demo */}
+            <Route path="/session-demo" element={
+              <PageWithInfo>
+                <SessionDemo />
+              </PageWithInfo>
+            } />
             {/* Knowledge: Projekt Knowledge */}
             <Route path="/knowledge/project" element={
               <PageWithInfo>
@@ -266,13 +300,13 @@ function App() {
             } />
 
           </Routes>
-            </ProtectedRoute>
+            </ProtectedRouteWrapper>
             </UserManagementProvider>
             </NotificationProvider>
-        </ProjectProvider>
-      </ChatProvider>
-    </AuthProvider>
-    </DemoAuthProvider>
+          </ProjectProvider>
+        </ChatProvider>
+      </AuthProvider>
+    </SessionProvider>
   )
 }
 

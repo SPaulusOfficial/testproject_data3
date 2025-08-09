@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserCreateRequest, UserUpdateRequest, UserListResponse } from '../types/User';
-import { userService } from '../services/UserService';
+import userService from '../services/UserService';
 
 interface UserManagementContextType {
   // State
@@ -60,17 +60,11 @@ export const UserManagementProvider: React.FC<UserManagementProviderProps> = ({ 
     setError(null);
     
     try {
-      // For development, use mock data
-      const mockUsers = userService.getMockUsers();
-      setUsers(mockUsers);
-      setTotalUsers(mockUsers.length);
+      // Use real API call
+      const response = await userService.getAllUsers();
+      setUsers(response);
+      setTotalUsers(response.length);
       setCurrentPage(page);
-      
-      // TODO: Replace with actual API call
-      // const response = await userService.getUsers(page, limit, search);
-      // setUsers(response.users);
-      // setTotalUsers(response.total);
-      // setCurrentPage(response.page);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch users');
     } finally {

@@ -1,127 +1,84 @@
-import { useContext, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Permission } from '../types/User';
-import { PermissionService } from '../services/PermissionService';
 
-export interface PermissionCheck {
-  resource: string;
-  action: string;
-  scope?: 'all' | 'own' | 'none';
-  projectId?: string;
+export interface Permission {
+  name: string;
+  description?: string;
+}
+
+export interface PermissionSet {
+  name: string;
+  permissions: string[];
+  description?: string;
 }
 
 export const usePermissions = () => {
   const { user } = useAuth();
 
-  const userPermissions = useMemo(() => {
-    if (!user) return [];
-    
-    // Combine global permissions with project-specific permissions
-    const globalPermissions = user.permissions || [];
-    const projectPermissions = user.projectMemberships?.flatMap(membership => 
-      membership.permissions.map(permission => ({
-        ...permission,
-        projectId: membership.projectId
-      }))
-    ) || [];
-    
-    return [...globalPermissions, ...projectPermissions];
-  }, [user]);
-
-  const checkPermission = (check: PermissionCheck): boolean => {
+  const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     
-    // Check if user is admin (bypass all permission checks)
-    if (user.globalRole === 'admin') return true;
+    // Admin has all permissions
+    if (user.role === 'admin') return true;
     
-    return PermissionService.hasPermission(userPermissions, check);
+    // Check user's permissions
+    const userPermissions = user.permissions || [];
+    return userPermissions.includes(permission);
   };
 
-  const checkProjectPermission = (projectId: string, check: Omit<PermissionCheck, 'projectId'>): boolean => {
-    return checkPermission({
-      ...check,
-      projectId
-    });
+  const hasAnyPermission = (permissions: string[]): boolean => {
+    return permissions.some(permission => hasPermission(permission));
   };
 
-  const canRead = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'read', projectId });
+  const hasAllPermissions = (permissions: string[]): boolean => {
+    return permissions.every(permission => hasPermission(permission));
   };
 
-  const canWrite = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'write', projectId });
+  const getUserPermissions = (): string[] => {
+    if (!user) return [];
+    return user.permissions || [];
   };
 
-  const canDelete = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'delete', projectId });
+  const canAccessUserManagement = (): boolean => {
+    return hasPermission('UserManagement');
   };
 
-  const canExecute = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'execute', projectId });
+  const canAccessProjectManagement = (): boolean => {
+    return hasPermission('ProjectManagement');
   };
 
-  const canApprove = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'approve', projectId });
+  const canAccessSystemSettings = (): boolean => {
+    return hasPermission('SystemSettings');
   };
 
-  const canExport = (resource: string, projectId?: string): boolean => {
-    return checkPermission({ resource, action: 'export', projectId });
+  const canAccessNotifications = (): boolean => {
+    return hasPermission('Notifications');
   };
 
-  const getResourcePermissions = (resource: string, projectId?: string): Permission[] => {
-    return PermissionService.getResourcePermissions(userPermissions, resource, projectId);
+  const canAccessAuditLogs = (): boolean => {
+    return hasPermission('AuditLogs');
   };
 
-  const hasAnyPermission = (resource: string, projectId?: string): boolean => {
-    const permissions = getResourcePermissions(resource, projectId);
-    return permissions.some(p => p.actions.length > 0);
+  const canAccessKnowledgeBase = (): boolean => {
+    return hasPermission('KnowledgeBase');
   };
 
-  const getProjectRole = (projectId: string): string | null => {
-    if (!user?.projectMemberships) return null;
-    
-    const membership = user.projectMemberships.find(m => m.projectId === projectId);
-    return membership?.role || null;
-  };
-
-  const isProjectOwner = (projectId: string): boolean => {
-    return getProjectRole(projectId) === 'owner';
-  };
-
-  const isProjectAdmin = (projectId: string): boolean => {
-    const role = getProjectRole(projectId);
-    return role === 'owner' || role === 'admin';
-  };
-
-  const isProjectMember = (projectId: string): boolean => {
-    const role = getProjectRole(projectId);
-    return role === 'owner' || role === 'admin' || role === 'member';
+  const canAccessWorkshopManagement = (): boolean => {
+    return hasPermission('WorkshopManagement');
   };
 
   return {
-    // Permission checking
-    checkPermission,
-    checkProjectPermission,
-    canRead,
-    canWrite,
-    canDelete,
-    canExecute,
-    canApprove,
-    canExport,
-    
-    // Permission data
-    getResourcePermissions,
+    hasPermission,
     hasAnyPermission,
-    userPermissions,
-    
-    // Project roles
-    getProjectRole,
-    isProjectOwner,
-    isProjectAdmin,
-    isProjectMember,
-    
-    // User info
-    user,
-    isAdmin: user?.globalRole === 'admin'
+    hasAllPermissions,
+    getUserPermissions,
+    canAccessUserManagement,
+    canAccessProjectManagement,
+    canAccessSystemSettings,
+    canAccessNotifications,
+    canAccessAuditLogs,
+    canAccessKnowledgeBase,
+    canAccessWorkshopManagement,
+    userPermissions: getUserPermissions(),
+    isAdmin: user?.role === 'admin'
   };
 };

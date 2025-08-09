@@ -1,5 +1,11 @@
 # 🛡️ AI Guardrails – Technical-Functional Framework for Agents and Modules
 
+Important:
+- We are not in a Demo phase. We want to implement a prod system
+- Kein Auth bypassing oder sonstige Spielereien um schneller ans Ziel zu kommen
+- Keine Änderungen an bestehender Datenbankstruktur ohne vorige ausdrückliche Zustimmung
+
+
 We are developing a modular, AI-powered platform for automating typical activities within Salesforce projects. The Project Assistant Suite accompanies the entire project lifecycle – from PreSales through Solution Design to Rollout and Hypercare – and uses specialized AI agents for extraction, structuring, and generation of relevant artifacts such as stories, data models, test cases, or training materials. The goal is to initially use this platform internally for efficiency improvement and later establish it as a productized system in the market.
 
 This document describes the binding framework ("Guardrails") for all AI-powered components within the Project Assistant Suite. It defines what is allowed, which technologies and methods may be used, and which architectural and security-related guidelines must be followed.

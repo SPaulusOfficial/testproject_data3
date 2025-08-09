@@ -1,292 +1,282 @@
-import { User, UserCreateRequest, UserUpdateRequest, CustomDataUpdateRequest, UserListResponse } from '../types/User';
+import { User, ProjectMembership } from '../types/User';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/api';
 
 class UserService {
-  private baseUrl = '/api/users';
-
-  // Get all users with pagination
-  async getUsers(page: number = 1, limit: number = 20, search?: string): Promise<UserListResponse> {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString(),
-      ...(search && { search })
-    });
-
-    const response = await fetch(`${this.baseUrl}?${params}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch users');
-    }
-    return response.json();
+  private getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('authToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
   }
 
-  // Get single user by ID
-  async getUser(id: string): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch user');
-    }
-    return response.json();
-  }
+  // =====================================================
+  // AUTHENTICATION METHODS
+  // =====================================================
 
-  // Create new user
-  async createUser(userData: UserCreateRequest): Promise<User> {
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create user');
-    }
-    return response.json();
-  }
-
-  // Update user
-  async updateUser(id: string, userData: UserUpdateRequest): Promise<User> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update user');
-    }
-    return response.json();
-  }
-
-  // Delete user
-  async deleteUser(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to delete user');
-    }
-  }
-
-  // Toggle user active status
-  async toggleUserStatus(id: string, isActive: boolean): Promise<User> {
-    return this.updateUser(id, { isActive });
-  }
-
-  // Custom Data Management
-  async getCustomData(userId: string, key?: string): Promise<any> {
-    const url = key 
-      ? `${this.baseUrl}/${userId}/custom-data/${key}`
-      : `${this.baseUrl}/${userId}/custom-data`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Failed to fetch custom data');
-    }
-    return response.json();
-  }
-
-  async setCustomData(userId: string, key: string, value: any, reason?: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${userId}/custom-data/${key}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ value, reason }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to set custom data');
-    }
-  }
-
-  async updateCustomData(userId: string, customData: Record<string, any>): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${userId}/custom-data`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(customData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update custom data');
-    }
-  }
-
-  async deleteCustomData(userId: string, key: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${userId}/custom-data/${key}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to delete custom data');
-    }
-  }
-
-  // Metadata Management
-  async getMetadata(userId: string): Promise<User['metadata']> {
-    const response = await fetch(`${this.baseUrl}/${userId}/metadata`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch metadata');
-    }
-    return response.json();
-  }
-
-  async updateMetadata(userId: string, metadata: Partial<User['metadata']>): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${userId}/metadata`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(metadata),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update metadata');
-    }
-  }
-
-  // Project Membership Management
-  async getProjectMemberships(userId: string): Promise<User['projectMemberships']> {
-    const response = await fetch(`${this.baseUrl}/${userId}/project-memberships`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch project memberships');
-    }
-    return response.json();
-  }
-
-  // Mock data for development
-  getMockUsers(): User[] {
-    return [
-      {
-        id: '1',
-        email: 'stefan.paulus@salesfive.com',
-        username: 'stefan.paulus',
-        profile: {
-          firstName: 'Stefan',
-          lastName: 'Paulus',
-          avatar: '/avatar.png',
-          phone: '+49 123 456789'
+  async login(emailOrUsername: string, password: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        globalRole: 'admin',
-        projectMemberships: [
-          {
-            projectId: 'project-1',
-            role: 'owner',
-            permissions: [
-              {
-                resource: 'projects',
-                actions: ['read', 'write', 'delete'],
-                scope: 'all'
-              }
-            ],
-            joinedAt: new Date('2024-01-01')
-          }
-        ],
-        security: {
-          passwordHash: 'hashed_password',
-          twoFactorEnabled: true,
-          twoFactorSecret: 'secret123',
-          lastLogin: new Date(),
-          failedLoginAttempts: 0
-        },
-        settings: {
-          language: 'de',
-          timezone: 'Europe/Berlin',
-          notifications: {
-            email: true,
-            push: false,
-            frequency: 'immediate',
-            types: {
-              security: true,
-              projectUpdates: true,
-              systemAlerts: true
-            }
-          }
-        },
-        customData: {
-          salesforce_org_id: '00D123456789',
-          preferred_language: 'de',
-          department: 'Engineering',
-          skills: ['React', 'TypeScript', 'Node.js']
-        },
-        metadata: {
-          version: 1,
-          lastModified: new Date(),
-          modifiedBy: 'system',
-          changeHistory: []
-        },
-        isActive: true,
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date()
-      },
-      {
-        id: '2',
-        email: 'john.doe@example.com',
-        username: 'john.doe',
-        profile: {
-          firstName: 'John',
-          lastName: 'Doe',
-          avatar: undefined,
-          phone: '+1 555 123456'
-        },
-        globalRole: 'user',
-        projectMemberships: [
-          {
-            projectId: 'project-1',
-            role: 'member',
-            permissions: [
-              {
-                resource: 'projects',
-                actions: ['read', 'write'],
-                scope: 'own'
-              }
-            ],
-            joinedAt: new Date('2024-01-15')
-          }
-        ],
-        security: {
-          passwordHash: 'hashed_password',
-          twoFactorEnabled: false,
-          twoFactorSecret: undefined,
-          lastLogin: new Date('2024-01-14'),
-          failedLoginAttempts: 0
-        },
-        settings: {
-          language: 'en',
-          timezone: 'America/New_York',
-          notifications: {
-            email: true,
-            push: true,
-            frequency: 'daily',
-            types: {
-              security: true,
-              projectUpdates: false,
-              systemAlerts: false
-            }
-          }
-        },
-        customData: {
-          salesforce_org_id: '00D987654321',
-          preferred_language: 'en',
-          department: 'Sales',
-          experience_level: 'senior'
-        },
-        metadata: {
-          version: 1,
-          lastModified: new Date('2024-01-15'),
-          modifiedBy: 'admin',
-          changeHistory: []
-        },
-        isActive: true,
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-01-15')
+        body: JSON.stringify({ emailOrUsername, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Login failed');
       }
-    ];
+
+      const data = await response.json();
+      
+      // Store token
+      localStorage.setItem('authToken', data.token);
+      
+      return data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  }
+
+  async logout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentProject');
+  }
+
+  // =====================================================
+  // USER MANAGEMENT METHODS
+  // =====================================================
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const backendUsers = await response.json();
+      
+      // Transform backend user format to frontend format
+      return backendUsers.map((backendUser: any) => this.transformBackendUser(backendUser));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      throw error;
+    }
+  }
+
+  private transformBackendUser(backendUser: any): User {
+    return {
+      id: backendUser.id,
+      email: backendUser.email,
+      username: backendUser.username,
+      profile: {
+        firstName: backendUser.firstName || backendUser.first_name || '',
+        lastName: backendUser.lastName || backendUser.last_name || '',
+        avatar: backendUser.avatar,
+        phone: backendUser.phone
+      },
+      globalRole: backendUser.globalRole || backendUser.global_role,
+      projectMemberships: backendUser.project_memberships || [],
+      security: {
+        passwordHash: backendUser.password_hash || '',
+        twoFactorEnabled: backendUser.two_factor_enabled || false,
+        twoFactorSecret: backendUser.two_factor_secret,
+        lastLogin: backendUser.last_login ? new Date(backendUser.last_login) : undefined,
+        failedLoginAttempts: backendUser.failed_login_attempts || 0
+      },
+      settings: {
+        language: backendUser.settings?.language || 'en',
+        timezone: backendUser.settings?.timezone || 'UTC',
+        notifications: backendUser.settings?.notifications || {
+          email: true,
+          push: false,
+          frequency: 'immediate',
+          types: {
+            security: true,
+            projectUpdates: true,
+            systemAlerts: true
+          }
+        }
+      },
+      customData: backendUser.customData || backendUser.custom_data || {},
+      metadata: {
+        version: backendUser.metadata?.version || 1,
+        lastModified: backendUser.updatedAt ? new Date(backendUser.updatedAt) : backendUser.updated_at ? new Date(backendUser.updated_at) : new Date(),
+        modifiedBy: backendUser.metadata?.modified_by,
+        changeHistory: backendUser.metadata?.change_history || []
+      },
+      isActive: backendUser.isActive !== undefined ? backendUser.isActive : backendUser.is_active,
+      createdAt: backendUser.createdAt ? new Date(backendUser.createdAt) : backendUser.created_at ? new Date(backendUser.created_at) : new Date(),
+      updatedAt: backendUser.updatedAt ? new Date(backendUser.updatedAt) : backendUser.updated_at ? new Date(backendUser.updated_at) : new Date()
+    };
+  }
+
+  async getUserById(userId: string): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user');
+      }
+
+      const backendUser = await response.json();
+      return this.transformBackendUser(backendUser);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      throw error;
+    }
+  }
+
+  async createUser(userData: Partial<User>): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create user');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
+  async updateUser(userId: string, updateData: Partial<User>): Promise<User> {
+    try {
+      // Transform frontend data to backend format
+      const backendData: any = {};
+      
+      if (updateData.email !== undefined) backendData.email = updateData.email;
+      if (updateData.username !== undefined) backendData.username = updateData.username;
+      if (updateData.globalRole !== undefined) backendData.globalRole = updateData.globalRole;
+      if (updateData.customData !== undefined) backendData.customData = updateData.customData;
+      if (updateData.metadata !== undefined) backendData.metadata = updateData.metadata;
+      
+      // Handle profile data
+      if (updateData.profile) {
+        if (updateData.profile.firstName !== undefined) backendData.firstName = updateData.profile.firstName;
+        if (updateData.profile.lastName !== undefined) backendData.lastName = updateData.profile.lastName;
+        if (updateData.profile.phone !== undefined) backendData.phone = updateData.profile.phone;
+      }
+      
+      // Handle direct firstName/lastName fields (for backward compatibility)
+      if (updateData.firstName !== undefined) backendData.firstName = updateData.firstName;
+      if (updateData.lastName !== undefined) backendData.lastName = updateData.lastName;
+      if (updateData.phone !== undefined) backendData.phone = updateData.phone;
+
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(backendData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update user');
+      }
+
+      const backendUser = await response.json();
+      return this.transformBackendUser(backendUser);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
+  async updateUserCustomData(userId: string, customData: Record<string, any>): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/custom-data`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(customData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update user custom data');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user custom data:', error);
+      throw error;
+    }
+  }
+
+  // =====================================================
+  // PROJECT MEMBERSHIP METHODS
+  // =====================================================
+
+  async getUserProjectMemberships(userId: string): Promise<ProjectMembership[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/project-memberships`, {
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch project memberships');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching project memberships:', error);
+      throw error;
+    }
+  }
+
+  // =====================================================
+  // UTILITY METHODS
+  // =====================================================
+
+  getCurrentUser(): User | null {
+    const userStr = localStorage.getItem('currentUser');
+    return userStr ? JSON.parse(userStr) : null;
+  }
+
+  setCurrentUser(user: User) {
+    localStorage.setItem('currentUser', JSON.stringify(user));
+  }
+
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem('authToken');
+  }
+
+  getAuthToken(): string | null {
+    return localStorage.getItem('authToken');
   }
 }
 
-export const userService = new UserService();
+export default new UserService();

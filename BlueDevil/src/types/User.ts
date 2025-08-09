@@ -22,10 +22,7 @@ export interface User {
     timezone: string;
     notifications: NotificationSettings;
   };
-  // Flexible Sub-Data Map für zukünftige Erweiterungen
-  customData: {
-    [key: string]: any; // Dynamische Daten für verschiedene Module/Features
-  };
+
   // Versionierte Metadaten für Tracking von Änderungen
   metadata: {
     version: number;
@@ -46,10 +43,87 @@ export interface ProjectMembership {
 }
 
 export interface Permission {
-  resource: string; // 'projects', 'agents', 'workflows', etc.
-  actions: string[]; // ['read', 'write', 'delete', 'execute']
+  resource: string; // 'projects', 'agents', 'workflows', 'admin', 'user_management', etc.
+  actions: string[]; // ['read', 'write', 'delete', 'execute', 'admin']
   scope: 'all' | 'own' | 'none';
 }
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  permissions: Permission[];
+  isSystem: boolean; // System roles cannot be deleted
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PermissionTemplate {
+  id: string;
+  name: string;
+  description: string;
+  permissions: Permission[];
+  category: 'admin' | 'user' | 'project' | 'system';
+}
+
+// Predefined permission templates
+export const PERMISSION_TEMPLATES: PermissionTemplate[] = [
+  {
+    id: 'admin_full',
+    name: 'Full Administrator',
+    description: 'Complete system access including user management, project management, and system settings',
+    category: 'admin',
+    permissions: [
+      { resource: 'admin', actions: ['read', 'write', 'delete', 'execute'], scope: 'all' },
+      { resource: 'user_management', actions: ['read', 'write', 'delete', 'execute'], scope: 'all' },
+      { resource: 'project_management', actions: ['read', 'write', 'delete', 'execute'], scope: 'all' },
+      { resource: 'system_settings', actions: ['read', 'write', 'delete', 'execute'], scope: 'all' },
+      { resource: 'audit_logs', actions: ['read', 'write', 'delete'], scope: 'all' }
+    ]
+  },
+  {
+    id: 'user_management_admin',
+    name: 'User Management Administrator',
+    description: 'Can manage users but not system settings',
+    category: 'admin',
+    permissions: [
+      { resource: 'user_management', actions: ['read', 'write', 'delete', 'execute'], scope: 'all' },
+      { resource: 'project_management', actions: ['read', 'write'], scope: 'all' },
+      { resource: 'audit_logs', actions: ['read'], scope: 'all' }
+    ]
+  },
+  {
+    id: 'project_admin',
+    name: 'Project Administrator',
+    description: 'Can manage projects and their members',
+    category: 'project',
+    permissions: [
+      { resource: 'project_management', actions: ['read', 'write', 'delete'], scope: 'all' },
+      { resource: 'project_members', actions: ['read', 'write', 'delete'], scope: 'all' },
+      { resource: 'project_data', actions: ['read', 'write'], scope: 'all' }
+    ]
+  },
+  {
+    id: 'project_member',
+    name: 'Project Member',
+    description: 'Standard project access',
+    category: 'project',
+    permissions: [
+      { resource: 'project_data', actions: ['read', 'write'], scope: 'own' },
+      { resource: 'project_members', actions: ['read'], scope: 'all' }
+    ]
+  },
+  {
+    id: 'project_viewer',
+    name: 'Project Viewer',
+    description: 'Read-only access to projects',
+    category: 'project',
+    permissions: [
+      { resource: 'project_data', actions: ['read'], scope: 'all' },
+      { resource: 'project_members', actions: ['read'], scope: 'all' }
+    ]
+  }
+];
 
 export interface ChangeRecord {
   field: string;

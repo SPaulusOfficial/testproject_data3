@@ -1,0 +1,1421 @@
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const userService = require('./userService');
+const projectService = require('./projectService');
+const notificationService = require('./notificationService');
+const permissionService = require('./permissionService');
+const { requirePermission, requireAnyPermission, requireAllPermissions, getUserPermissions } = require('./permissionMiddleware');
+require('dotenv').config({ path: __dirname + '/../.env' });
+
+// Debug logging setup
+const debug = require('debug')('server:main');
+const debugDb = require('debug')('server:database');
+const debugAuth = require('debug')('server:auth');
+const debugApi = require('debug')('server:api');
+
+// Enhanced error logging
+const fs = require('fs');
+const path = require('path');
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// Enhanced logging function
+function logError(error, context = '') {
+  const timestamp = new Date().toISOString();
+  const errorLog = {
+    timestamp,
+    context,
+    error: error.message,
+    stack: error.stack,
+    code: error.code,
+    sqlState: error.sqlState
+  };
+  
+  console.error(`❌ ERROR [${timestamp}] ${context}:`, error);
+  console.error('Stack trace:', error.stack);
+  
+  // Write to error log file
+  const errorLogPath = path.join(logsDir, 'error.log');
+  fs.appendFileSync(errorLogPath, JSON.stringify(errorLog) + '\n');
+}
+
+// Enhanced process monitoring
+let serverStartTime = Date.now();
+let requestCount = 0;
+let errorCount = 0;
+let lastErrorTime = null;
+
+// Process error handlers with enhanced logging
+process.on('uncaughtException', (error) => {
+  const uptime = Date.now() - serverStartTime;
+  const memoryUsage = process.memoryUsage();
+  
+  console.error('💥 CRITICAL: Server crashed due to uncaught exception');
+  console.error(`📊 Server Stats:`);
+  console.error(`   - Uptime: ${Math.round(uptime / 1000)}s`);
+  console.error(`   - Requests handled: ${requestCount}`);
+  console.error(`   - Errors encountered: ${errorCount}`);
+  console.error(`   - Memory usage: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`);
+  console.error(`   - Last error: ${lastErrorTime ? new Date(lastErrorTime).toISOString() : 'None'}`);
+  
+  logError(error, 'UNCAUGHT_EXCEPTION');
+  
+  // Write crash report
+  const crashReport = {
+    timestamp: new Date().toISOString(),
+    type: 'UNCAUGHT_EXCEPTION',
+    uptime: uptime,
+    requestCount: requestCount,
+    errorCount: errorCount,
+    memoryUsage: memoryUsage,
+    error: {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    }
+  };
+  
+  const crashLogPath = path.join(logsDir, 'crash.log');
+  fs.appendFileSync(crashLogPath, JSON.stringify(crashReport) + '\n');
+  
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  const uptime = Date.now() - serverStartTime;
+  const memoryUsage = process.memoryUsage();
+  
+  console.error('💥 CRITICAL: Server crashed due to unhandled promise rejection');
+  console.error(`📊 Server Stats:`);
+  console.error(`   - Uptime: ${Math.round(uptime / 1000)}s`);
+  console.error(`   - Requests handled: ${requestCount}`);
+  console.error(`   - Errors encountered: ${errorCount}`);
+  console.error(`   - Memory usage: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`);
+  console.error(`   - Last error: ${lastErrorTime ? new Date(lastErrorTime).toISOString() : 'None'}`);
+  
+  logError(reason, 'UNHANDLED_REJECTION');
+  
+  // Write crash report
+  const crashReport = {
+    timestamp: new Date().toISOString(),
+    type: 'UNHANDLED_REJECTION',
+    uptime: uptime,
+    requestCount: requestCount,
+    errorCount: errorCount,
+    memoryUsage: memoryUsage,
+    reason: reason instanceof Error ? {
+      message: reason.message,
+      stack: reason.stack,
+      code: reason.code
+    } : reason
+  };
+  
+  const crashLogPath = path.join(logsDir, 'crash.log');
+  fs.appendFileSync(crashLogPath, JSON.stringify(crashReport) + '\n');
+  
+  process.exit(1);
+});
+
+// Enhanced signal handlers
+process.on('SIGTERM', () => {
+  console.log('🛑 Received SIGTERM - Starting graceful shutdown...');
+  gracefulShutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 Received SIGINT - Starting graceful shutdown...');
+  gracefulShutdown('SIGINT');
+});
+
+// Monitor for other signals that might kill the process
+// Note: SIGKILL cannot be caught, but we can monitor for unexpected exits
+process.on('exit', (code) => {
+  console.log(`🔄 Process exiting with code: ${code}`);
+  const exitReport = {
+    timestamp: new Date().toISOString(),
+    type: 'PROCESS_EXIT',
+    code: code,
+    uptime: Date.now() - serverStartTime,
+    requestCount: requestCount,
+    errorCount: errorCount,
+    memoryUsage: process.memoryUsage()
+  };
+  
+  const exitLogPath = path.join(logsDir, 'exit.log');
+  fs.appendFileSync(exitLogPath, JSON.stringify(exitReport) + '\n');
+});
+
+// Memory monitoring
+setInterval(() => {
+  const memoryUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+  
+  if (heapUsedMB > 500) { // Warning at 500MB
+    console.warn(`⚠️  High memory usage: ${heapUsedMB}MB / ${heapTotalMB}MB`);
+    logError(new Error(`High memory usage: ${heapUsedMB}MB`), 'MEMORY_WARNING');
+  }
+  
+  // Log memory usage every 5 minutes
+  if (Date.now() % 300000 < 1000) { // Every 5 minutes
+    console.log(`📊 Memory usage: ${heapUsedMB}MB / ${heapTotalMB}MB`);
+  }
+}, 30000); // Check every 30 seconds
+
+// Heartbeat monitoring
+setInterval(() => {
+  const uptime = Date.now() - serverStartTime;
+  const memoryUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+  
+  // Log heartbeat every 10 minutes
+  if (Date.now() % 600000 < 1000) { // Every 10 minutes
+    console.log(`💓 Heartbeat - Uptime: ${Math.round(uptime / 1000)}s, Requests: ${requestCount}, Errors: ${errorCount}, Memory: ${heapUsedMB}MB`);
+    
+    // Write heartbeat to log
+    const heartbeatLog = {
+      timestamp: new Date().toISOString(),
+      type: 'HEARTBEAT',
+      uptime: uptime,
+      requestCount: requestCount,
+      errorCount: errorCount,
+      memoryUsage: memoryUsage
+    };
+    
+    const heartbeatLogPath = path.join(logsDir, 'heartbeat.log');
+    fs.appendFileSync(heartbeatLogPath, JSON.stringify(heartbeatLog) + '\n');
+  }
+}, 60000); // Check every minute
+
+// Global variables
+let globalPool = null;
+
+const app = express();
+const PORT = process.env.PORT || 3002;
+
+console.log('🔧 Starting server with configuration:');
+console.log(`   - Port: ${PORT}`);
+console.log(`   - Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`   - Database Host: ${process.env.VITE_DB_HOST || 'localhost'}`);
+console.log(`   - Database Port: ${process.env.VITE_DB_PORT || 5432}`);
+console.log(`   - Database Name: ${process.env.VITE_DB_NAME || 'platform_db'}`);
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Enhanced request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  requestCount++;
+  
+  // Log request details
+  console.log(`📥 [${timestamp}] ${req.method} ${req.path} - IP: ${req.ip} - Request #${requestCount}`);
+  debugApi(`${req.method} ${req.path} - Body:`, req.body);
+  
+  // Track response time
+  const startTime = Date.now();
+  
+  // Override res.end to log response details
+  const originalEnd = res.end;
+  res.end = function(chunk, encoding) {
+    const responseTime = Date.now() - startTime;
+    const statusCode = res.statusCode;
+    
+    console.log(`📤 [${new Date().toISOString()}] ${req.method} ${req.path} - Status: ${statusCode} - Time: ${responseTime}ms`);
+    
+    // Log slow requests
+    if (responseTime > 5000) { // 5 seconds
+      console.warn(`🐌 Slow request: ${req.method} ${req.path} took ${responseTime}ms`);
+      logError(new Error(`Slow request: ${responseTime}ms`), `SLOW_REQUEST_${req.method}_${req.path}`);
+    }
+    
+    // Log errors
+    if (statusCode >= 400) {
+      errorCount++;
+      lastErrorTime = Date.now();
+      console.error(`❌ Error response: ${req.method} ${req.path} - Status: ${statusCode}`);
+    }
+    
+    originalEnd.call(this, chunk, encoding);
+  };
+  
+  next();
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  logError(error, `API_ERROR_${req.method}_${req.path}`);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: error.message,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Authentication middleware
+async function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    debugAuth('No token provided');
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    req.user = decoded;
+    debugAuth(`Token verified for user: ${decoded.userId}`);
+    next();
+  } catch (error) {
+    debugAuth(`Token verification failed: ${error.message}`);
+    return res.status(403).json({ error: 'Invalid token' });
+  }
+}
+
+// Admin middleware
+function requireAdmin(req, res, next) {
+  if (req.user.globalRole !== 'admin') {
+    debugAuth(`Admin access denied for user: ${req.user.userId}`);
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  debugAuth(`Admin access granted for user: ${req.user.userId}`);
+  next();
+}
+
+// Project access middleware
+async function requireProjectAccess(req, res, next) {
+  const { projectId } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    debugDb(`Checking project access for user ${userId} to project ${projectId}`);
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT * FROM project_memberships 
+      WHERE user_id = $1 AND project_id = $2
+    `, [userId, projectId]);
+    
+    client.release();
+    
+    if (result.rows.length === 0 && req.user.globalRole !== 'admin') {
+      debugAuth(`Project access denied for user ${userId} to project ${projectId}`);
+      return res.status(403).json({ error: 'Project access denied' });
+    }
+    
+    debugAuth(`Project access granted for user ${userId} to project ${projectId}`);
+    next();
+  } catch (error) {
+    logError(error, `PROJECT_ACCESS_CHECK_${userId}_${projectId}`);
+    res.status(500).json({ error: 'Failed to check project access' });
+  }
+}
+
+// Database connection with enhanced error handling
+async function getPool() {
+  try {
+    // Return existing pool if available
+    if (globalPool) {
+      return globalPool;
+    }
+
+    debugDb('Creating database pool...');
+    const { Pool } = require('pg');
+    globalPool = new Pool({
+      host: process.env.VITE_DB_HOST || 'localhost',
+      port: process.env.VITE_DB_PORT || 5432,
+      database: process.env.VITE_DB_NAME || 'platform_db',
+      user: process.env.VITE_DB_USER || 'postgres',
+      password: process.env.VITE_DB_PASSWORD || 'password',
+      ssl: process.env.VITE_DB_SSL_MODE === 'true' ? { rejectUnauthorized: false } : false,
+      // Connection pool settings
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
+
+    // Test the connection
+    const client = await globalPool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    
+    debugDb('Database pool created successfully');
+    return globalPool;
+  } catch (error) {
+    logError(error, 'DATABASE_POOL_CREATION');
+    throw error;
+  }
+}
+
+// Graceful shutdown function
+async function gracefulShutdown(signal = 'UNKNOWN') {
+  const uptime = Date.now() - serverStartTime;
+  const memoryUsage = process.memoryUsage();
+  
+  console.log('🛑 Shutting down server gracefully...');
+  console.log(`📊 Final Server Stats:`);
+  console.log(`   - Signal: ${signal}`);
+  console.log(`   - Uptime: ${Math.round(uptime / 1000)}s`);
+  console.log(`   - Requests handled: ${requestCount}`);
+  console.log(`   - Errors encountered: ${errorCount}`);
+  console.log(`   - Memory usage: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`);
+  console.log(`   - Last error: ${lastErrorTime ? new Date(lastErrorTime).toISOString() : 'None'}`);
+  
+  // Write shutdown report
+  const shutdownReport = {
+    timestamp: new Date().toISOString(),
+    type: 'GRACEFUL_SHUTDOWN',
+    signal: signal,
+    uptime: uptime,
+    requestCount: requestCount,
+    errorCount: errorCount,
+    memoryUsage: memoryUsage,
+    lastErrorTime: lastErrorTime
+  };
+  
+  const shutdownLogPath = path.join(logsDir, 'shutdown.log');
+  fs.appendFileSync(shutdownLogPath, JSON.stringify(shutdownReport) + '\n');
+  
+  if (globalPool) {
+    console.log('📝 Closing database pool...');
+    try {
+      await globalPool.end();
+      console.log('✅ Database pool closed');
+    } catch (error) {
+      console.error('❌ Error closing database pool:', error);
+      logError(error, 'SHUTDOWN_DB_POOL_ERROR');
+    }
+  }
+  
+  console.log('✅ Server shutdown complete');
+  process.exit(0);
+}
+
+// Initialize database with enhanced error handling
+async function initializeDatabase() {
+  try {
+    console.log('🗄️  Initializing database...');
+    debugDb('Starting database initialization');
+    
+    const pool = await getPool();
+    const appClient = await pool.connect();
+    
+    console.log('✅ Database connection established');
+    debugDb('Database connection successful');
+    
+    // Check if database exists
+    const dbCheck = await appClient.query(`
+      SELECT 1 FROM pg_database WHERE datname = 'platform_db'
+    `);
+    
+    if (dbCheck.rows.length === 0) {
+      console.log('📦 Creating database...');
+      debugDb('Creating platform_db database');
+      await appClient.query(`CREATE DATABASE platform_db`);
+    } else {
+      console.log('✅ Database \'platform_db\' already exists');
+      debugDb('Database platform_db already exists');
+    }
+    
+    appClient.release();
+    
+    // Connect to the specific database
+    const dbClient = await pool.connect();
+    
+    // Create tables with error handling
+    console.log('📋 Creating database schema...');
+    debugDb('Creating database schema');
+    
+    const schema = `
+      -- Users table
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100) NOT NULL DEFAULT '',
+        last_name VARCHAR(100) NOT NULL DEFAULT '',
+        avatar_url VARCHAR(500),
+        phone VARCHAR(20),
+        global_role VARCHAR(20) DEFAULT 'user' CHECK (global_role IN ('admin', 'user', 'guest')),
+        two_factor_enabled BOOLEAN DEFAULT FALSE,
+        two_factor_secret VARCHAR(32),
+        failed_login_attempts INTEGER DEFAULT 0,
+        locked_until TIMESTAMP,
+        last_login TIMESTAMP,
+        custom_data JSONB DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        is_active BOOLEAN DEFAULT TRUE
+      );
+
+      -- Projects table
+      CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        owner_id UUID REFERENCES users(id),
+        settings JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Project memberships table
+      CREATE TABLE IF NOT EXISTS project_memberships (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        role VARCHAR(50) DEFAULT 'member',
+        permissions JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, project_id)
+      );
+
+      -- Audit logs table
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id),
+        action VARCHAR(100) NOT NULL,
+        resource_type VARCHAR(50),
+        resource_id UUID,
+        details JSONB,
+        ip_address TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Notifications table
+      CREATE TABLE IF NOT EXISTS notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'info',
+        is_read BOOLEAN DEFAULT FALSE,
+        data JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+      CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id);
+      CREATE INDEX IF NOT EXISTS idx_project_memberships_user ON project_memberships(user_id);
+      CREATE INDEX IF NOT EXISTS idx_project_memberships_project ON project_memberships(project_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+      CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
+    `;
+    
+    await dbClient.query(schema);
+    console.log('✅ Database schema initialized successfully');
+    debugDb('Database schema created successfully');
+    
+    // Insert default admin user if not exists
+    const adminCheck = await dbClient.query(`
+      SELECT id FROM users WHERE username = 'admin'
+    `);
+    
+    if (adminCheck.rows.length === 0) {
+      console.log('👤 Creating default admin user...');
+      debugDb('Creating default admin user');
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await dbClient.query(`
+        INSERT INTO users (username, email, password_hash, first_name, last_name, global_role, custom_data)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        'admin',
+        'admin@salesfive.com',
+        hashedPassword,
+        'Admin',
+        'User',
+        'admin',
+        JSON.stringify({
+          permissions: ['UserManagement', 'ProjectManagement', 'SystemSettings'],
+          permissionSets: ['FullAdministrator']
+        })
+      ]);
+      console.log('✅ Default admin user created');
+      debugDb('Default admin user created successfully');
+    }
+    
+    // Insert default test user if not exists
+    const testUserCheck = await dbClient.query(`
+      SELECT id FROM users WHERE username = 'testuser'
+    `);
+    
+    if (testUserCheck.rows.length === 0) {
+      console.log('👤 Creating default test user...');
+      debugDb('Creating default test user');
+      const hashedPassword = await bcrypt.hash('test123', 10);
+      await dbClient.query(`
+        INSERT INTO users (username, email, password_hash, first_name, last_name, global_role, custom_data)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        'testuser',
+        'test@salesfive.com',
+        hashedPassword,
+        'Test',
+        'User',
+        'user',
+        JSON.stringify({
+          permissions: ['UserProfile', 'ProjectData'],
+          permissionSets: ['BasicUser']
+        })
+      ]);
+      console.log('✅ Default test user created');
+      debugDb('Default test user created successfully');
+    }
+    
+    dbClient.release();
+    console.log('✅ Database initialized successfully');
+    debugDb('Database initialization completed successfully');
+    
+  } catch (error) {
+    logError(error, 'DATABASE_INITIALIZATION');
+    console.error('❌ Database initialization failed');
+    throw error;
+  }
+}
+
+// =====================================================
+// AUTHENTICATION ENDPOINTS
+// =====================================================
+
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    console.log('🔐 Login attempt:', { username: req.body.username, timestamp: new Date().toISOString() });
+    debugAuth('Login attempt', { username: req.body.username });
+    
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      console.log('❌ Login failed: Missing credentials');
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+    
+    console.log('🗄️  Connecting to database for login...');
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    console.log('🔍 Querying user in database...');
+    const result = await client.query(`
+      SELECT id, username, email, password_hash, first_name, last_name, global_role, custom_data, metadata
+      FROM users WHERE username = $1 OR email = $1
+    `, [username]);
+    
+    client.release();
+    
+    if (result.rows.length === 0) {
+      console.log('❌ Login failed: User not found');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const user = result.rows[0];
+    console.log('🔐 Verifying password...');
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    
+    if (!validPassword) {
+      console.log('❌ Login failed: Invalid password');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('✅ Password verified, creating JWT token...');
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        email: user.email,
+        globalRole: user.global_role
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    console.log('📝 Logging audit event...');
+    // Log audit event
+    const auditClient = await pool.connect();
+    await auditClient.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, details, ip_address)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [
+      user.id,
+      'login',
+      'auth',
+      JSON.stringify({ method: 'password' }),
+      req.ip || 'unknown'
+    ]);
+    auditClient.release();
+    
+    console.log('✅ Login successful for user:', user.username);
+    res.json({
+      token,
+              user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          globalRole: user.global_role,
+          customData: user.custom_data || {},
+          metadata: user.metadata || {}
+        }
+    });
+  } catch (error) {
+    logError(error, 'LOGIN_ENDPOINT');
+    console.error('❌ Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Token validation endpoint
+app.get('/api/debug/token', authenticateToken, (req, res) => {
+  console.log('🔍 Token validation request for user:', req.user.userId);
+  res.json({ valid: true, user: req.user });
+});
+
+// =====================================================
+// USER MANAGEMENT ENDPOINTS
+// =====================================================
+
+// Get all users
+app.get('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+  try {
+    console.log('👥 Fetching all users...');
+    debugApi('Fetching all users');
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT id, username, email, first_name, last_name, global_role, custom_data, metadata, created_at, updated_at
+      FROM users
+      ORDER BY username
+    `);
+    
+    client.release();
+    
+          const users = result.rows.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        globalRole: user.global_role,
+        customData: user.custom_data || {},
+        metadata: user.metadata || {},
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      }));
+    
+    console.log(`✅ Retrieved ${users.length} users`);
+    res.json(users);
+  } catch (error) {
+    logError(error, 'GET_ALL_USERS');
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Get user statistics
+app.get('/api/users/stats', authenticateToken, async (req, res) => {
+  try {
+    console.log('📊 Fetching user statistics...');
+    debugApi('Fetching user statistics');
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get total users, active users, inactive users
+    const userStats = await client.query(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN is_active = true THEN 1 END) as active_users,
+        COUNT(CASE WHEN is_active = false THEN 1 END) as inactive_users
+      FROM users
+    `);
+    
+    // Get login activity from audit logs (with error handling)
+    let loginActivity = { rows: [{ today: 0, yesterday: 0, last_30_days: 0 }] };
+    try {
+      loginActivity = await client.query(`
+        SELECT 
+          COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as today,
+          COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE - INTERVAL '1 day' THEN 1 END) as yesterday,
+          COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as last_30_days
+        FROM audit_logs 
+        WHERE action = 'login'
+      `);
+    } catch (auditError) {
+      console.log('Audit logs table not available, using default values');
+    }
+    
+    client.release();
+    
+    const stats = userStats.rows[0];
+    const activity = loginActivity.rows[0];
+    
+    console.log('✅ User statistics retrieved');
+    res.json({
+      totalUsers: parseInt(stats.total_users) || 0,
+      activeUsers: parseInt(stats.active_users) || 0,
+      inactiveUsers: parseInt(stats.inactive_users) || 0,
+      loginActivity: {
+        today: parseInt(activity.today) || 0,
+        yesterday: parseInt(activity.yesterday) || 0,
+        last30Days: parseInt(activity.last_30_days) || 0
+      }
+    });
+  } catch (error) {
+    logError(error, 'GET_USER_STATS');
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({ error: 'Failed to fetch user statistics' });
+  }
+});
+
+// Get user by ID
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+    
+    console.log(`👤 Fetching user ${id} by user ${currentUser.userId}`);
+    debugApi(`Fetching user ${id}`);
+    
+    // Users can only access their own data unless admin
+    if (currentUser.userId !== id && currentUser.globalRole !== 'admin') {
+      console.log('❌ Access denied: User can only access own data');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT id, username, email, first_name, last_name, global_role, custom_data, metadata, created_at, updated_at
+      FROM users WHERE id = $1
+    `, [id]);
+    
+    client.release();
+    
+    if (result.rows.length === 0) {
+      console.log('❌ User not found:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    console.log('✅ User retrieved:', user.username);
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      globalRole: user.global_role,
+      customData: user.custom_data || {},
+      metadata: user.metadata || {},
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    });
+  } catch (error) {
+    logError(error, `GET_USER_BY_ID_${req.params.id}`);
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// Create user
+app.post('/api/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('👤 Creating new user...');
+    debugApi('Creating new user', req.body);
+    
+    const { username, email, password, firstName, lastName, globalRole = 'user', customData = {}, metadata = {} } = req.body;
+    
+    if (!username || !email || !password) {
+      console.log('❌ User creation failed: Missing required fields');
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+    
+    console.log('🔐 Hashing password...');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    console.log('💾 Inserting user into database...');
+    const result = await client.query(`
+      INSERT INTO users (username, email, password_hash, first_name, last_name, global_role, custom_data, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, username, email, first_name, last_name, global_role, custom_data, metadata, created_at
+    `, [username, email, hashedPassword, firstName, lastName, globalRole, JSON.stringify(customData), JSON.stringify(metadata)]);
+    
+    client.release();
+    
+    console.log('✅ User created successfully:', username);
+    res.status(201).json({
+      id: result.rows[0].id,
+      username: result.rows[0].username,
+      email: result.rows[0].email,
+      globalRole: result.rows[0].global_role,
+      customData: result.rows[0].custom_data || {},
+      createdAt: result.rows[0].created_at
+    });
+  } catch (error) {
+    logError(error, 'CREATE_USER');
+    console.error('Error creating user:', error);
+    if (error.code === '23505') { // Unique constraint violation
+      res.status(400).json({ error: 'Username or email already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  }
+});
+
+// Update user
+app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, firstName, lastName, phone, globalRole, customData, metadata } = req.body;
+    
+    console.log(`👤 Updating user ${id}...`);
+    debugApi(`Updating user ${id}`, req.body);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      UPDATE users 
+      SET username = COALESCE($1, username),
+          email = COALESCE($2, email),
+          first_name = COALESCE($3, first_name),
+          last_name = COALESCE($4, last_name),
+          phone = COALESCE($5, phone),
+          global_role = COALESCE($6, global_role),
+          custom_data = COALESCE($7, custom_data),
+          metadata = COALESCE($8, metadata),
+          updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `, [username, email, firstName, lastName, phone, globalRole, customData ? JSON.stringify(customData) : null, metadata ? JSON.stringify(metadata) : null, id]);
+    
+    if (result.rows.length === 0) {
+      console.log('❌ User not found for update:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    client.release();
+    
+    const user = result.rows[0];
+    console.log('✅ User updated successfully:', user.username);
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+      globalRole: user.global_role,
+      customData: user.custom_data || {},
+      metadata: user.metadata || {},
+      updatedAt: user.updated_at
+    });
+  } catch (error) {
+    logError(error, `UPDATE_USER_${req.params.id}`);
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Delete user
+app.delete('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🗑️  Deleting user ${id}...`);
+    debugApi(`Deleting user ${id}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [id]);
+    
+    if (result.rows.length === 0) {
+      console.log('❌ User not found for deletion:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    client.release();
+    console.log('✅ User deleted successfully:', id);
+    res.json({ success: true });
+  } catch (error) {
+    logError(error, `DELETE_USER_${req.params.id}`);
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// =====================================================
+// PROJECT MANAGEMENT ENDPOINTS
+// =====================================================
+
+// Get all projects
+app.get('/api/projects', authenticateToken, async (req, res) => {
+  try {
+    console.log('📁 Fetching all projects...');
+    debugApi('Fetching all projects');
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT p.*, u.username as owner_name
+      FROM projects p
+      LEFT JOIN users u ON p.owner_id = u.id
+      ORDER BY p.created_at DESC
+    `);
+    
+    client.release();
+    
+    const projects = result.rows.map(project => ({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      ownerId: project.owner_id,
+      ownerName: project.owner_name,
+      settings: project.settings || {},
+      createdAt: project.created_at,
+      updatedAt: project.updated_at
+    }));
+    
+    console.log(`✅ Retrieved ${projects.length} projects`);
+    res.json(projects);
+  } catch (error) {
+    logError(error, 'GET_ALL_PROJECTS');
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+// Create project
+app.post('/api/projects', authenticateToken, async (req, res) => {
+  try {
+    const { name, description, settings = {} } = req.body;
+    const userId = req.user.userId;
+    
+    console.log('📁 Creating new project...');
+    debugApi('Creating new project', { name, description, userId });
+    
+    if (!name) {
+      console.log('❌ Project creation failed: Missing name');
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      INSERT INTO projects (name, description, owner_id, settings)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [name, description, userId, JSON.stringify(settings)]);
+    
+    client.release();
+    
+    const project = result.rows[0];
+    console.log('✅ Project created successfully:', project.name);
+    res.status(201).json({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      ownerId: project.owner_id,
+      settings: project.settings || {},
+      createdAt: project.created_at
+    });
+  } catch (error) {
+    logError(error, 'CREATE_PROJECT');
+    console.error('Error creating project:', error);
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+// =====================================================
+// SIMPLIFIED PERMISSION SYSTEM ENDPOINTS
+// =====================================================
+
+// Get all available permissions
+app.get('/api/permissions', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔐 Fetching all permissions...');
+    debugApi('Fetching all permissions');
+    
+    const permissions = permissionService.getAllPermissions();
+    console.log(`✅ Retrieved ${permissions.length} permissions`);
+    res.json(permissions);
+  } catch (error) {
+    logError(error, 'GET_ALL_PERMISSIONS');
+    console.error('Error fetching permissions:', error);
+    res.status(500).json({ error: 'Failed to fetch permissions' });
+  }
+});
+
+// Get all permission sets
+app.get('/api/permissions/sets', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔐 Fetching all permission sets...');
+    debugApi('Fetching all permission sets');
+    
+    const permissionSets = permissionService.getAllPermissionSets();
+    console.log(`✅ Retrieved ${permissionSets.length} permission sets`);
+    res.json(permissionSets);
+  } catch (error) {
+    logError(error, 'GET_ALL_PERMISSION_SETS');
+    console.error('Error fetching permission sets:', error);
+    res.status(500).json({ error: 'Failed to fetch permission sets' });
+  }
+});
+
+// Get permissions for a specific set
+app.get('/api/permissions/sets/:setName', authenticateToken, async (req, res) => {
+  try {
+    const { setName } = req.params;
+    console.log(`🔐 Fetching permissions for set: ${setName}`);
+    debugApi(`Fetching permissions for set: ${setName}`);
+    
+    const permissions = permissionService.getPermissionSet(setName);
+    console.log(`✅ Retrieved ${permissions.length} permissions for set: ${setName}`);
+    res.json(permissions);
+  } catch (error) {
+    logError(error, `GET_PERMISSION_SET_${req.params.setName}`);
+    console.error('Error fetching permission set:', error);
+    res.status(500).json({ error: 'Failed to fetch permission set' });
+  }
+});
+
+// Check if user has a specific permission
+app.post('/api/permissions/check', authenticateToken, async (req, res) => {
+  try {
+    const { permission } = req.body;
+    const currentUser = req.user;
+    
+    console.log(`🔐 Checking permission '${permission}' for user ${currentUser.userId}`);
+    debugApi(`Checking permission: ${permission}`);
+    
+    // Get user's permissions from database
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const userResult = await client.query(`
+      SELECT custom_data FROM users WHERE id = $1
+    `, [currentUser.userId]);
+    
+    client.release();
+    
+    if (userResult.rows.length === 0) {
+      console.log('❌ User not found for permission check');
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userData = userResult.rows[0].custom_data || {};
+    const userPermissions = userData.permissions || [];
+    const userPermissionSets = userData.permissionSets || [];
+    
+    // Get effective permissions (including sets)
+    const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
+    
+    const hasPermission = permissionService.hasPermission(effectivePermissions, permission);
+    
+    console.log(`✅ Permission check result: ${hasPermission} for permission '${permission}'`);
+    res.json({ hasPermission, effectivePermissions });
+  } catch (error) {
+    logError(error, 'CHECK_PERMISSION');
+    console.error('Error checking permission:', error);
+    res.status(500).json({ error: 'Failed to check permission' });
+  }
+});
+
+// Update user permissions
+app.put('/api/users/:userId/permissions', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { permissions, permissionSets } = req.body;
+    
+    console.log(`🔐 Updating permissions for user ${userId}...`);
+    debugApi(`Updating permissions for user ${userId}`, { permissions, permissionSets });
+    
+    // Validate permissions
+    if (permissions && !permissionService.validatePermissions(permissions)) {
+      console.log('❌ Invalid permissions provided');
+      return res.status(400).json({ error: 'Invalid permissions provided' });
+    }
+    
+    // Validate permission sets
+    if (permissionSets && !permissionService.validatePermissionSets(permissionSets)) {
+      console.log('❌ Invalid permission sets provided');
+      return res.status(400).json({ error: 'Invalid permission sets provided' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get current user data
+    const userResult = await client.query(`
+      SELECT custom_data FROM users WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      console.log('❌ User not found for permission update');
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const currentData = userResult.rows[0].custom_data || {};
+    const updatedData = {
+      ...currentData,
+      permissions: permissions || currentData.permissions || [],
+      permissionSets: permissionSets || currentData.permissionSets || []
+    };
+    
+    // Update user
+    await client.query(`
+      UPDATE users SET custom_data = $1 WHERE id = $2
+    `, [JSON.stringify(updatedData), userId]);
+    
+    client.release();
+    
+    console.log('✅ User permissions updated successfully');
+    res.json({ 
+      message: 'User permissions updated successfully',
+      permissions: updatedData.permissions,
+      permissionSets: updatedData.permissionSets
+    });
+  } catch (error) {
+    logError(error, `UPDATE_USER_PERMISSIONS_${req.params.userId}`);
+    console.error('Error updating user permissions:', error);
+    res.status(500).json({ error: 'Failed to update user permissions' });
+  }
+});
+
+// Get user's effective permissions
+app.get('/api/users/:userId/permissions', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUser = req.user;
+    
+    console.log(`🔐 Fetching permissions for user ${userId}...`);
+    debugApi(`Fetching permissions for user ${userId}`);
+    
+    // Users can only check their own permissions unless admin
+    if (currentUser.userId !== userId && currentUser.globalRole !== 'admin') {
+      console.log('❌ Access denied: User can only check own permissions');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const userResult = await client.query(`
+      SELECT custom_data FROM users WHERE id = $1
+    `, [userId]);
+    
+    client.release();
+    
+    if (userResult.rows.length === 0) {
+      console.log('❌ User not found for permission fetch');
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userData = userResult.rows[0].custom_data || {};
+    const userPermissions = userData.permissions || [];
+    const userPermissionSets = userData.permissionSets || [];
+    
+    // Get effective permissions (including sets)
+    const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
+    
+    console.log(`✅ Retrieved permissions for user ${userId}`);
+    res.json({
+      permissions: userPermissions,
+      permissionSets: userPermissionSets,
+      effectivePermissions: effectivePermissions
+    });
+  } catch (error) {
+    logError(error, `GET_USER_PERMISSIONS_${req.params.userId}`);
+    console.error('Error fetching user permissions:', error);
+    res.status(500).json({ error: 'Failed to fetch user permissions' });
+  }
+});
+
+// =====================================================
+// NOTIFICATION ENDPOINTS
+// =====================================================
+
+// Get user notifications
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log(`🔔 Fetching notifications for user ${userId}...`);
+    debugApi(`Fetching notifications for user ${userId}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT * FROM notifications 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 50
+    `, [userId]);
+    
+    client.release();
+    
+    const notifications = result.rows.map(notification => ({
+      id: notification.id,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      isRead: notification.is_read,
+      data: notification.data || {},
+      createdAt: notification.created_at
+    }));
+    
+    console.log(`✅ Retrieved ${notifications.length} notifications for user ${userId}`);
+    res.json(notifications);
+  } catch (error) {
+    logError(error, 'GET_USER_NOTIFICATIONS');
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    console.log(`🔔 Marking notification ${id} as read for user ${userId}...`);
+    debugApi(`Marking notification ${id} as read`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      UPDATE notifications 
+      SET is_read = true 
+      WHERE id = $1 AND user_id = $2
+      RETURNING *
+    `, [id, userId]);
+    
+    client.release();
+    
+    if (result.rows.length === 0) {
+      console.log('❌ Notification not found or access denied');
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    
+    console.log('✅ Notification marked as read successfully');
+    res.json({ success: true });
+  } catch (error) {
+    logError(error, `MARK_NOTIFICATION_READ_${req.params.id}`);
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Get unread notification count
+app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUser = req.user;
+    
+    console.log(`🔔 Getting unread count for user ${userId}...`);
+    debugApi(`Getting unread count for user ${userId}`);
+    
+    // Users can only check their own unread count unless admin
+    if (currentUser.userId !== userId && currentUser.globalRole !== 'admin') {
+      console.log('❌ Access denied: User can only check own unread count');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT COUNT(*) as unread_count 
+      FROM notifications 
+      WHERE user_id = $1 AND is_read = false
+    `, [userId]);
+    
+    client.release();
+    
+    const unreadCount = parseInt(result.rows[0].unread_count);
+    
+    console.log(`✅ Retrieved unread count for user ${userId}: ${unreadCount}`);
+    res.json({ unreadCount });
+  } catch (error) {
+    logError(error, `GET_UNREAD_COUNT_${req.params.userId}`);
+    console.error('Error getting unread count:', error);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// =====================================================
+// HEALTH CHECK ENDPOINTS
+// =====================================================
+
+// Health check
+app.get('/api/health', (req, res) => {
+  console.log('🏥 Health check requested');
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    service: 'Salesfive Platform API'
+  });
+});
+
+// Database health check
+app.get('/api/health/db', async (req, res) => {
+  try {
+    console.log('🏥 Database health check requested');
+    debugDb('Database health check');
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    
+    console.log('✅ Database health check passed');
+    res.json({ status: 'healthy', database: 'connected' });
+  } catch (error) {
+    logError(error, 'DATABASE_HEALTH_CHECK');
+    console.error('❌ Database health check failed');
+    res.status(500).json({ status: 'unhealthy', database: 'disconnected', error: error.message });
+  }
+});
+
+// Start server with enhanced error handling
+app.listen(PORT, async () => {
+  console.log(`🚀 Notification API Server running on port ${PORT}`);
+  console.log('🔧 Starting database initialization...');
+  
+  try {
+    await initializeDatabase();
+    console.log('✅ Server startup completed successfully');
+  } catch (error) {
+    logError(error, 'SERVER_STARTUP');
+    console.error('❌ Server startup failed');
+    process.exit(1);
+  }
+});
+
+module.exports = app;

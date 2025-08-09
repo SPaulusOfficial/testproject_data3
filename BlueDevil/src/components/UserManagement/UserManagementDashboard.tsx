@@ -3,15 +3,15 @@ import { useUserManagement } from '../../contexts/UserManagementContext';
 import { User } from '../../types/User';
 
 export const UserManagementDashboard: React.FC = () => {
-  const { users } = useUserManagement();
+  const { users, isLoading } = useUserManagement();
 
   // Calculate statistics
   const totalUsers = users.length;
   const activeUsers = users.filter(user => user.isActive).length;
   const inactiveUsers = totalUsers - activeUsers;
   const adminUsers = users.filter(user => user.globalRole === 'admin').length;
-  const usersWith2FA = users.filter(user => user.security.twoFactorEnabled).length;
-  const usersWithCustomData = users.filter(user => Object.keys(user.customData).length > 0).length;
+  const usersWith2FA = users.filter(user => user.security?.twoFactorEnabled).length;
+  const usersWithCustomData = users.filter(user => Object.keys(user.customData || {}).length > 0).length;
 
   // Get recent activity (last 7 days)
   const sevenDaysAgo = new Date();

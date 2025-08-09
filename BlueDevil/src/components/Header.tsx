@@ -1,5 +1,5 @@
 import React from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Menu, Search, LogOut } from 'lucide-react'
 import { NotificationBell } from './NotificationBell'
@@ -27,6 +27,7 @@ const getPageTitle = (pathname: string): string => {
 
 export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
   const pageTitle = getPageTitle(location.pathname)
 
@@ -73,11 +74,15 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
                 <p className="text-xs text-gray-600">{user.role}</p>
               </div>
               
-              <div className="w-8 h-8 bg-digital-blue rounded-full flex items-center justify-center">
+              <button
+                onClick={() => navigate('/profile')}
+                className="w-8 h-8 bg-digital-blue rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors cursor-pointer"
+                title="View User Profile"
+              >
                 <span className="text-white text-sm font-bold">
                   {user.name.charAt(0)}
                 </span>
-              </div>
+              </button>
               
               <button
                 onClick={logout}

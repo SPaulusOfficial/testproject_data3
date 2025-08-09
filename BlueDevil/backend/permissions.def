@@ -1,0 +1,52 @@
+# Salesfive Platform Permissions
+# Each line represents a function/feature that can be granted to users
+
+# User Management
+UserManagement
+UserProfile
+UserRoles
+UserPermissions
+
+# Project Management
+ProjectManagement
+ProjectCreation
+ProjectDeletion
+ProjectMembers
+
+# System Administration
+SystemSettings
+SystemConfiguration
+SystemMonitoring
+SystemLogs
+
+# AI Features
+
+# Data Management
+
+# Reporting
+
+
+# Notifications
+Notifications
+NotificationSettings
+NotificationTemplates
+
+# Audit & Security
+AuditLogs
+SecuritySettings
+AccessControl
+
+# Knowledge Management
+KnowledgeBase
+WorkshopManagement
+
+# Pre-Sales Features
+
+# Solution Features
+
+
+# Communication
+Chat
+
+# Integration
+APIAccess
