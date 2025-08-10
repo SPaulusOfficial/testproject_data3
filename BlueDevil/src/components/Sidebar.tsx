@@ -61,7 +61,7 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
       type: 'link'
     },
     // User Management - only shown if user has permission
-    ...(canAccessUserManagement ? [{
+    ...(canAccessUserManagement() ? [{
       label: 'User Management',
       icon: Users,
       path: '/user-management',
@@ -306,30 +306,31 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
               </button>
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {projects.map(project => (
+              {availableProjects.map(project => (
                 <button
                   key={project.id}
                   onClick={() => {
-                    setActiveProjectId(project.id)
+                    // Note: setActiveProjectId is not available in useProject hook
+                    // This would need to be implemented in the ProjectContext
                     setShowProjectModal(false)
                   }}
                   className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                    project.id === activeProjectId
+                    project.projectId === currentProject?.id
                       ? 'border-digital-blue bg-digital-blue/10 text-digital-blue'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                      project.id === activeProjectId
+                      project.projectId === currentProject?.id
                         ? 'bg-digital-blue text-white'
                         : 'bg-gray-200 text-gray-600'
                     }`}>
-                      {getProjectShortName(project.name)}
+                      {getProjectShortName(project.projectName)}
                     </div>
                     <div>
-                      <div className="font-semibold text-black">{project.name}</div>
-                      <div className="text-sm text-gray-600">{project.client}</div>
+                      <div className="font-semibold text-black">{project.projectName}</div>
+                      <div className="text-sm text-gray-600">{project.projectDescription || 'No description'}</div>
                     </div>
                   </div>
                 </button>

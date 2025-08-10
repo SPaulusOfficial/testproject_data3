@@ -3,6 +3,8 @@ import { User } from '../../types/User';
 import { useUserManagement } from '../../contexts/UserManagementContext';
 import { CustomDataEditor } from './CustomDataEditor';
 import { ProjectMembershipManager } from './ProjectMembershipManager';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PermissionGuard } from '../PermissionGuard';
 
 interface UserListProps {
   onEditUser: (user: User) => void;
@@ -10,12 +12,18 @@ interface UserListProps {
 }
 
 export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser }) => {
-  const { users, isLoading, error, toggleUserStatus, deleteUser } = useUserManagement();
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { users, deleteUser, updateUser, toggleUserStatus, fetchUsers, isLoading, error } = useUserManagement();
+  const { hasPermission } = usePermissions();
   const [showCustomDataModal, setShowCustomDataModal] = useState(false);
   const [showProjectMembershipModal, setShowProjectMembershipModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const handleToggleStatus = async (userId: string, isActive: boolean) => {
+    if (!hasPermission('UserManagement')) {
+      alert('You do not have permission to modify user status');
+      return;
+    }
+    
     try {
       await toggleUserStatus(userId, isActive);
     } catch (error) {
@@ -24,6 +32,11 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser }) =>
   };
 
   const handleDeleteUser = async (userId: string) => {
+    if (!hasPermission('UserManagement')) {
+      alert('You do not have permission to delete users');
+      return;
+    }
+    
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
         await deleteUser(userId);
@@ -34,11 +47,26 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser }) =>
   };
 
   const handleCustomDataClick = (user: User) => {
+    if (!hasPermission('UserManagement')) {
+      alert('You do not have permission to edit user custom data');
+      return;
+    }
     setSelectedUser(user);
     setShowCustomDataModal(true);
   };
 
+  const handleCustomDataClose = () => {
+    setShowCustomDataModal(false);
+    setSelectedUser(null);
+    // Refresh the user list to get updated data
+    fetchUsers();
+  };
+
   const handleProjectMembershipClick = (user: User) => {
+    if (!hasPermission('UserManagement')) {
+      alert('You do not have permission to manage project memberships');
+      return;
+    }
     setSelectedUser(user);
     setShowProjectMembershipModal(true);
   };
@@ -156,40 +184,55 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser }) =>
                     >
                       View
                     </button>
-                    <button
-                      onClick={() => onEditUser(user)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      Edit
-                    </button>
-                                         <button
-                       onClick={() => handleCustomDataClick(user)}
-                       className="text-green-600 hover:text-green-900"
-                     >
-                       Custom Data
-                     </button>
-                     <button
-                       onClick={() => handleProjectMembershipClick(user)}
-                       className="text-purple-600 hover:text-purple-900"
-                     >
-                       Projects
-                     </button>
-                    <button
-                      onClick={() => handleToggleStatus(user.id, !user.isActive)}
-                      className={`${
-                        user.isActive 
-                          ? 'text-yellow-600 hover:text-yellow-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                    >
-                      {user.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => onEditUser(user)}
+                        className="text-indigo-600 hover:text-indigo-900"
+                      >
+                        Edit
+                      </button>
+                    </PermissionGuard>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => handleCustomDataClick(user)}
+                        className="text-green-600 hover:text-green-900"
+                      >
+                        Custom Data
+                      </button>
+                    </PermissionGuard>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => handleProjectMembershipClick(user)}
+                        className="text-purple-600 hover:text-purple-900"
+                      >
+                        Projects
+                      </button>
+                    </PermissionGuard>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => handleToggleStatus(user.id, !user.isActive)}
+                        className={`${
+                          user.isActive 
+                            ? 'text-yellow-600 hover:text-yellow-900'
+                            : 'text-green-600 hover:text-green-900'
+                        }`}
+                      >
+                        {user.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </PermissionGuard>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </PermissionGuard>
                   </div>
                 </td>
               </tr>
@@ -208,8 +251,8 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser }) =>
                </h3>
                <CustomDataEditor
                  userId={selectedUser.id}
-                 data={selectedUser.customData}
-                 onClose={() => setShowCustomDataModal(false)}
+                 data={selectedUser.customData || {}}
+                 onClose={handleCustomDataClose}
                />
              </div>
            </div>

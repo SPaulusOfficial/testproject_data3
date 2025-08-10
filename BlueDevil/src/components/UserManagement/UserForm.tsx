@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserCreateRequest, UserUpdateRequest, Permission } from '../../types/User';
-
 import { SimplePermissionManager } from './SimplePermissionManager';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PermissionGuard } from '../PermissionGuard';
 
 interface UserFormProps {
   user?: User;
@@ -16,6 +17,7 @@ export const UserForm: React.FC<UserFormProps> = ({
   onCancel, 
   mode 
 }) => {
+  const { hasPermission } = usePermissions();
   const [formData, setFormData] = useState({
     email: user?.email || '',
     username: user?.username || '',
@@ -28,9 +30,7 @@ export const UserForm: React.FC<UserFormProps> = ({
     confirmPassword: '' // Only for create mode
   });
 
-
   const [showPermissions, setShowPermissions] = useState(false);
-
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,6 +74,11 @@ export const UserForm: React.FC<UserFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!hasPermission('UserManagement')) {
+      alert('You do not have permission to manage users');
+      return;
+    }
+    
     if (!validateForm()) return;
 
     setIsSubmitting(true);
@@ -100,7 +105,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         await onSubmit(updateData);
       }
     } catch (error) {
-      console.error('Form submission failed:', error);
+      console.error('Form submission error:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -293,30 +298,36 @@ export const UserForm: React.FC<UserFormProps> = ({
 
 
         {/* Global Permissions Section */}
-        <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Global Permissions</h3>
-            <button
-              type="button"
-              onClick={() => setShowPermissions(!showPermissions)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              {showPermissions ? 'Hide' : 'Show'} Permissions
-            </button>
-          </div>
-          
-          {showPermissions && (
-            <div className="bg-gray-50 p-4 rounded-md">
-              <SimplePermissionManager
-                userId={user?.id || 'new'}
-                onPermissionsUpdate={(permissions) => {
-                  // Handle permission updates
-                  console.log('Permissions updated:', permissions);
+        <PermissionGuard permission="UserManagement">
+          <div className="border-t pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Global Permissions</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('Toggle permissions visibility, current state:', showPermissions);
+                  setShowPermissions(!showPermissions);
                 }}
-              />
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                {showPermissions ? 'Hide' : 'Show'} Permissions
+              </button>
             </div>
-          )}
-        </div>
+            
+            {showPermissions && (
+              <div className="bg-gray-50 p-4 rounded-md">
+                <SimplePermissionManager
+                  key={user?.id || 'new'} // Force re-render when user changes
+                  userId={user?.id || 'new'}
+                  onPermissionsUpdate={(permissions) => {
+                    // Handle permission updates
+                    console.log('Permissions updated:', permissions);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </PermissionGuard>
 
         {/* Form Actions */}
         <div className="flex justify-end space-x-3 pt-6 border-t">
@@ -327,16 +338,18 @@ export const UserForm: React.FC<UserFormProps> = ({
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting 
-              ? (mode === 'create' ? 'Creating...' : 'Saving...')
-              : (mode === 'create' ? 'Create User' : 'Save Changes')
-            }
-          </button>
+          <PermissionGuard permission="UserManagement">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting 
+                ? (mode === 'create' ? 'Creating...' : 'Saving...')
+                : (mode === 'create' ? 'Create User' : 'Save Changes')
+              }
+            </button>
+          </PermissionGuard>
         </div>
       </form>
     </div>

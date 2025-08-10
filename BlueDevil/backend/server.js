@@ -271,8 +271,47 @@ async function authenticateToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    req.user = decoded;
-    debugAuth(`Token verified for user: ${decoded.userId}`);
+    
+    // Load user data from database to get is_active status
+    try {
+      const pool = await getPool();
+      const client = await pool.connect();
+      
+      const result = await client.query(`
+        SELECT id, username, email, global_role, is_active, custom_data
+        FROM users WHERE id = $1
+      `, [decoded.userId]);
+      
+      client.release();
+      
+      if (result.rows.length === 0) {
+        debugAuth(`User not found in database: ${decoded.userId}`);
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      const userData = result.rows[0];
+      
+      // Check if user is active
+      if (!userData.is_active) {
+        debugAuth(`Inactive user attempted access: ${decoded.userId}`);
+        return res.status(401).json({ error: 'Account is deactivated' });
+      }
+      
+      // Merge database data with token data
+      req.user = {
+        ...decoded,
+        isActive: userData.is_active,
+        customData: userData.custom_data || {}
+      };
+      
+      debugAuth(`Token verified for user: ${decoded.userId} (active: ${userData.is_active})`);
+    } catch (dbError) {
+      console.error('Database error during authentication:', dbError);
+      // Fallback to token data only
+      req.user = decoded;
+      debugAuth(`Token verified for user: ${decoded.userId} (fallback mode)`);
+    }
+    
     next();
   } catch (error) {
     debugAuth(`Token verification failed: ${error.message}`);
@@ -355,6 +394,10 @@ async function getPool() {
     throw error;
   }
 }
+
+// Export getPool for use by other modules
+// Note: This will be overridden at the end of the file
+global.getPool = getPool;
 
 // Graceful shutdown function
 async function gracefulShutdown(signal = 'UNKNOWN') {
@@ -576,6 +619,50 @@ async function initializeDatabase() {
       console.log('✅ Default test user created');
       debugDb('Default test user created successfully');
     }
+
+    // Insert normaluser with UserManagement permission if not exists
+    const normalUserCheck = await dbClient.query(`
+      SELECT id FROM users WHERE username = 'normaluser'
+    `);
+    
+    if (normalUserCheck.rows.length === 0) {
+      console.log('👤 Creating normaluser with UserManagement permission...');
+      debugDb('Creating normaluser with UserManagement permission');
+      const hashedPassword = await bcrypt.hash('normal123', 10);
+      await dbClient.query(`
+        INSERT INTO users (username, email, password_hash, first_name, last_name, global_role, custom_data)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        'normaluser',
+        'normaluser@salesfive.com',
+        hashedPassword,
+        'Normal',
+        'User',
+        'user',
+        JSON.stringify({
+          permissions: ['UserManagement'],
+          permissionSets: ['UserManager']
+        })
+      ]);
+      console.log('✅ Normaluser with UserManagement permission created');
+      debugDb('Normaluser created successfully');
+    } else {
+      // Update existing normaluser with UserManagement permission
+      console.log('👤 Updating existing normaluser with UserManagement permission...');
+      debugDb('Updating existing normaluser with UserManagement permission');
+      await dbClient.query(`
+        UPDATE users 
+        SET custom_data = $1, updated_at = NOW()
+        WHERE username = 'normaluser'
+      `, [
+        JSON.stringify({
+          permissions: ['UserManagement'],
+          permissionSets: ['UserManager']
+        })
+      ]);
+      console.log('✅ Normaluser permissions updated');
+      debugDb('Normaluser permissions updated successfully');
+    }
     
     dbClient.release();
     console.log('✅ Database initialized successfully');
@@ -700,7 +787,7 @@ app.get('/api/users', authenticateToken, requirePermission('UserManagement'), as
     const client = await pool.connect();
     
     const result = await client.query(`
-      SELECT id, username, email, first_name, last_name, global_role, custom_data, metadata, created_at, updated_at
+      SELECT id, username, email, first_name, last_name, global_role, custom_data, metadata, created_at, updated_at, is_active
       FROM users
       ORDER BY username
     `);
@@ -717,7 +804,8 @@ app.get('/api/users', authenticateToken, requirePermission('UserManagement'), as
         customData: user.custom_data || {},
         metadata: user.metadata || {},
         createdAt: user.created_at,
-        updatedAt: user.updated_at
+        updatedAt: user.updated_at,
+        isActive: user.is_active
       }));
     
     console.log(`✅ Retrieved ${users.length} users`);
@@ -938,6 +1026,53 @@ app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Toggle user active status
+app.patch('/api/users/:id/status', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+    
+    console.log(`🔄 Toggling user ${id} status to ${isActive}...`);
+    debugApi(`Toggling user ${id} status`, { isActive });
+    
+    if (typeof isActive !== 'boolean') {
+      console.log('❌ Invalid isActive parameter');
+      return res.status(400).json({ error: 'isActive must be a boolean' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      UPDATE users 
+      SET is_active = $1, updated_at = NOW() 
+      WHERE id = $2 
+      RETURNING id, username, is_active
+    `, [isActive, id]);
+    
+    if (result.rows.length === 0) {
+      console.log('❌ User not found for status update:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    client.release();
+    const user = result.rows[0];
+    console.log(`✅ User ${user.username} status updated to ${user.is_active}`);
+    res.json({ 
+      success: true, 
+      user: {
+        id: user.id,
+        username: user.username,
+        isActive: user.is_active
+      }
+    });
+  } catch (error) {
+    logError(error, `TOGGLE_USER_STATUS_${req.params.id}`);
+    console.error('Error toggling user status:', error);
+    res.status(500).json({ error: 'Failed to toggle user status' });
+  }
+});
+
 // Delete user
 app.delete('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -1112,32 +1247,12 @@ app.post('/api/permissions/check', authenticateToken, async (req, res) => {
     console.log(`🔐 Checking permission '${permission}' for user ${currentUser.userId}`);
     debugApi(`Checking permission: ${permission}`);
     
-    // Get user's permissions from database
+    // Use the central database function
     const pool = await getPool();
-    const client = await pool.connect();
-    
-    const userResult = await client.query(`
-      SELECT custom_data FROM users WHERE id = $1
-    `, [currentUser.userId]);
-    
-    client.release();
-    
-    if (userResult.rows.length === 0) {
-      console.log('❌ User not found for permission check');
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const userData = userResult.rows[0].custom_data || {};
-    const userPermissions = userData.permissions || [];
-    const userPermissionSets = userData.permissionSets || [];
-    
-    // Get effective permissions (including sets)
-    const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
-    
-    const hasPermission = permissionService.hasPermission(effectivePermissions, permission);
+    const hasPermission = await permissionService.checkUserPermission(currentUser.userId, permission, pool);
     
     console.log(`✅ Permission check result: ${hasPermission} for permission '${permission}'`);
-    res.json({ hasPermission, effectivePermissions });
+    res.json({ hasPermission });
   } catch (error) {
     logError(error, 'CHECK_PERMISSION');
     console.error('Error checking permission:', error);
@@ -1150,59 +1265,77 @@ app.put('/api/users/:userId/permissions', authenticateToken, requireAdmin, async
   try {
     const { userId } = req.params;
     const { permissions, permissionSets } = req.body;
+    const currentUser = req.user;
     
     console.log(`🔐 Updating permissions for user ${userId}...`);
+    console.log(`🔍 Request body:`, req.body);
+    console.log(`🔍 Permissions:`, permissions);
+    console.log(`🔍 Permission sets:`, permissionSets);
     debugApi(`Updating permissions for user ${userId}`, { permissions, permissionSets });
     
-    // Validate permissions
-    if (permissions && !permissionService.validatePermissions(permissions)) {
-      console.log('❌ Invalid permissions provided');
-      return res.status(400).json({ error: 'Invalid permissions provided' });
+    // Validate permissions before saving
+    const validation = permissionService.validatePermissionsForSave(permissions, permissionSets);
+    if (!validation.isValid) {
+      console.log('❌ Validation errors:', validation.errors);
+      return res.status(400).json({ 
+        error: 'Invalid permissions provided', 
+        details: validation.errors 
+      });
     }
     
-    // Validate permission sets
-    if (permissionSets && !permissionService.validatePermissionSets(permissionSets)) {
-      console.log('❌ Invalid permission sets provided');
-      return res.status(400).json({ error: 'Invalid permission sets provided' });
-    }
-    
+    // Use the central database function
     const pool = await getPool();
-    const client = await pool.connect();
-    
-    // Get current user data
-    const userResult = await client.query(`
-      SELECT custom_data FROM users WHERE id = $1
-    `, [userId]);
-    
-    if (userResult.rows.length === 0) {
-      console.log('❌ User not found for permission update');
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const currentData = userResult.rows[0].custom_data || {};
-    const updatedData = {
-      ...currentData,
-      permissions: permissions || currentData.permissions || [],
-      permissionSets: permissionSets || currentData.permissionSets || []
-    };
-    
-    // Update user
-    await client.query(`
-      UPDATE users SET custom_data = $1 WHERE id = $2
-    `, [JSON.stringify(updatedData), userId]);
-    
-    client.release();
+    const updatedPermissions = await permissionService.updateUserPermissions(
+      userId, 
+      permissions, 
+      permissionSets, 
+      currentUser.userId, 
+      pool
+    );
     
     console.log('✅ User permissions updated successfully');
     res.json({ 
       message: 'User permissions updated successfully',
-      permissions: updatedData.permissions,
-      permissionSets: updatedData.permissionSets
+      ...updatedPermissions
     });
   } catch (error) {
     logError(error, `UPDATE_USER_PERMISSIONS_${req.params.userId}`);
     console.error('Error updating user permissions:', error);
     res.status(500).json({ error: 'Failed to update user permissions' });
+  }
+});
+
+// Get all available permissions
+app.get('/api/permissions', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔐 Fetching all available permissions...');
+    debugApi('Fetching all available permissions');
+    
+    const permissions = permissionService.getAllPermissions();
+    
+    console.log(`✅ Retrieved ${permissions.length} available permissions`);
+    res.json(permissions);
+  } catch (error) {
+    logError(error, 'GET_ALL_PERMISSIONS');
+    console.error('Error fetching permissions:', error);
+    res.status(500).json({ error: 'Failed to fetch permissions' });
+  }
+});
+
+// Get all available permission sets
+app.get('/api/permissions/sets', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔐 Fetching all available permission sets...');
+    debugApi('Fetching all available permission sets');
+    
+    const permissionSets = permissionService.getAllPermissionSets();
+    
+    console.log(`✅ Retrieved ${permissionSets.length} available permission sets`);
+    res.json(permissionSets);
+  } catch (error) {
+    logError(error, 'GET_ALL_PERMISSION_SETS');
+    console.error('Error fetching permission sets:', error);
+    res.status(500).json({ error: 'Failed to fetch permission sets' });
   }
 });
 
@@ -1221,33 +1354,12 @@ app.get('/api/users/:userId/permissions', authenticateToken, async (req, res) =>
       return res.status(403).json({ error: 'Access denied' });
     }
     
+    // Use the central database function
     const pool = await getPool();
-    const client = await pool.connect();
-    
-    const userResult = await client.query(`
-      SELECT custom_data FROM users WHERE id = $1
-    `, [userId]);
-    
-    client.release();
-    
-    if (userResult.rows.length === 0) {
-      console.log('❌ User not found for permission fetch');
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const userData = userResult.rows[0].custom_data || {};
-    const userPermissions = userData.permissions || [];
-    const userPermissionSets = userData.permissionSets || [];
-    
-    // Get effective permissions (including sets)
-    const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
+    const userPermissions = await permissionService.getUserPermissionsFromDatabase(userId, pool);
     
     console.log(`✅ Retrieved permissions for user ${userId}`);
-    res.json({
-      permissions: userPermissions,
-      permissionSets: userPermissionSets,
-      effectivePermissions: effectivePermissions
-    });
+    res.json(userPermissions);
   } catch (error) {
     logError(error, `GET_USER_PERMISSIONS_${req.params.userId}`);
     console.error('Error fetching user permissions:', error);
@@ -1418,4 +1530,5 @@ app.listen(PORT, async () => {
   }
 });
 
-module.exports = app;
+// Export both app and getPool
+module.exports = { app, getPool };

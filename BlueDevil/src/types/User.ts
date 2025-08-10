@@ -22,6 +22,7 @@ export interface User {
     timezone: string;
     notifications: NotificationSettings;
   };
+  customData?: Record<string, any>; // Flexible custom data storage
 
   // Versionierte Metadaten für Tracking von Änderungen
   metadata: {

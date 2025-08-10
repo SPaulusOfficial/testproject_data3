@@ -35,6 +35,32 @@ CREATE TABLE IF NOT EXISTS users (
   is_active BOOLEAN DEFAULT TRUE
 );
 
+-- User Permissions Table (Individual user permissions)
+CREATE TABLE IF NOT EXISTS user_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  permission_id VARCHAR(100) NOT NULL,
+  granted_by UUID REFERENCES users(id),
+  granted_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  is_active BOOLEAN DEFAULT TRUE,
+  notes TEXT,
+  UNIQUE(user_id, permission_id)
+);
+
+-- User Permission Sets Table (Permission set assignments)
+CREATE TABLE IF NOT EXISTS user_permission_sets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  permission_set_id VARCHAR(100) NOT NULL,
+  granted_by UUID REFERENCES users(id),
+  granted_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  is_active BOOLEAN DEFAULT TRUE,
+  notes TEXT,
+  UNIQUE(user_id, permission_set_id)
+);
+
 -- Projects Table (Projects = Tenants in simplified model)
 CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -115,39 +141,49 @@ CREATE TABLE IF NOT EXISTS project_data (
   data JSONB NOT NULL,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMP DEFAULT NOW(),
+  version INTEGER DEFAULT 1
 );
 
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
 
--- Users indexes
+-- User indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_global_role ON users(global_role);
 CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
 
--- Projects indexes
+-- User permissions indexes
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_permission_id ON user_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_is_active ON user_permissions(is_active);
+
+-- User permission sets indexes
+CREATE INDEX IF NOT EXISTS idx_user_permission_sets_user_id ON user_permission_sets(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_permission_sets_set_id ON user_permission_sets(permission_set_id);
+CREATE INDEX IF NOT EXISTS idx_user_permission_sets_is_active ON user_permission_sets(is_active);
+
+-- Project indexes
+CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id);
 CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
-CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
 CREATE INDEX IF NOT EXISTS idx_projects_is_active ON projects(is_active);
 
 -- Project memberships indexes
-CREATE INDEX IF NOT EXISTS idx_project_memberships_user_id ON project_memberships(user_id);
-CREATE INDEX IF NOT EXISTS idx_project_memberships_project_id ON project_memberships(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_memberships_user ON project_memberships(user_id);
+CREATE INDEX IF NOT EXISTS idx_project_memberships_project ON project_memberships(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_memberships_role ON project_memberships(role);
 
 -- Audit logs indexes
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_project_id ON audit_logs(project_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_severity ON audit_logs(severity);
 
 -- Project data indexes
-CREATE INDEX IF NOT EXISTS idx_project_data_project_id ON project_data(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_data_data_type ON project_data(data_type);
+CREATE INDEX IF NOT EXISTS idx_project_data_project ON project_data(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_data_type ON project_data(data_type);
 CREATE INDEX IF NOT EXISTS idx_project_data_created_by ON project_data(created_by);
 
 -- =====================================================
@@ -252,8 +288,8 @@ CREATE POLICY audit_logs_access_policy ON audit_logs
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
 $$ language 'plpgsql';
 
@@ -448,3 +484,41 @@ INSERT INTO roles (name, description, permissions, is_system) VALUES
    {"resource": "project_data", "actions": ["read"], "scope": "all"},
    {"resource": "project_members", "actions": ["read"], "scope": "all"}
  ]', true);
+
+-- =====================================================
+-- VIEWS FOR COMMON QUERIES
+-- =====================================================
+
+-- View for user permissions with effective permissions
+CREATE OR REPLACE VIEW user_effective_permissions AS
+SELECT 
+  u.id as user_id,
+  u.username,
+  u.email,
+  u.global_role,
+  -- Direct permissions
+  array_agg(DISTINCT up.permission_id) FILTER (WHERE up.permission_id IS NOT NULL) as direct_permissions,
+  -- Permission sets
+  array_agg(DISTINCT ups.permission_set_id) FILTER (WHERE ups.permission_set_id IS NOT NULL) as permission_sets,
+  -- Combined permissions (for display)
+  array_agg(DISTINCT up.permission_id) FILTER (WHERE up.permission_id IS NOT NULL) || 
+  array_agg(DISTINCT ups.permission_set_id) FILTER (WHERE ups.permission_set_id IS NOT NULL) as all_permissions
+FROM users u
+LEFT JOIN user_permissions up ON u.id = up.user_id AND up.is_active = true
+LEFT JOIN user_permission_sets ups ON u.id = ups.user_id AND ups.is_active = true
+GROUP BY u.id, u.username, u.email, u.global_role;
+
+-- View for project members with permissions
+CREATE OR REPLACE VIEW project_members_with_permissions AS
+SELECT 
+  pm.project_id,
+  pm.user_id,
+  u.username,
+  u.email,
+  pm.role,
+  pm.permissions as project_permissions,
+  pm.joined_at,
+  pm.last_accessed
+FROM project_memberships pm
+JOIN users u ON pm.user_id = u.id
+WHERE pm.is_active = true AND u.is_active = true;

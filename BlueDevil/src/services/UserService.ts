@@ -5,6 +5,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/api'
 class UserService {
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('authToken');
+    console.log('🔍 Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'No token');
+    
+    if (!token) {
+      console.warn('⚠️ No auth token found in localStorage');
+    }
+    
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` })
@@ -54,20 +60,56 @@ class UserService {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        headers: this.getAuthHeaders(),
+      const url = `${API_BASE_URL}/users`;
+      const headers = this.getAuthHeaders();
+      
+      console.log('🔍 ===== USER API REQUEST =====');
+      console.log('🔍 URL:', url);
+      console.log('🔍 Method: GET');
+      console.log('🔍 Headers:', headers);
+      console.log('🔍 Token:', (headers as any).Authorization ? (headers as any).Authorization.substring(0, 50) + '...' : 'No token');
+      
+      const response = await fetch(url, {
+        headers: headers,
+        cache: 'no-cache', // Prevent caching
       });
 
+      console.log('🔍 ===== USER API RESPONSE =====');
+      console.log('🔍 Status:', response.status);
+      console.log('🔍 Status Text:', response.statusText);
+      console.log('🔍 OK:', response.ok);
+      console.log('🔍 Headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Backend error:', errorData);
+        
+        // Try to get response text for debugging
+        const responseText = await response.text().catch(() => 'Could not read response');
+        console.error('❌ Response text:', responseText);
+        
+        if (response.status === 403) {
+          throw new Error(`Access denied: User Management permission required. Backend says: ${errorData.message || errorData.error}`);
+        } else if (response.status === 401) {
+          throw new Error('Authentication required');
+        } else if (response.status === 404) {
+          throw new Error('API endpoint not found');
+        } else if (response.status === 500) {
+          throw new Error('Backend server error');
+        } else {
+          throw new Error(errorData.error || `Failed to fetch users (${response.status})`);
+        }
       }
 
       const backendUsers = await response.json();
+      console.log('✅ Backend users received:', backendUsers.length);
+      console.log('✅ Backend users data:', backendUsers);
+      console.log('🔍 ===== END USER API =====');
       
       // Transform backend user format to frontend format
       return backendUsers.map((backendUser: any) => this.transformBackendUser(backendUser));
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error fetching users:', error);
       throw error;
     }
   }

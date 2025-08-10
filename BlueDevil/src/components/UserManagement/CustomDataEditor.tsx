@@ -12,7 +12,11 @@ export const CustomDataEditor: React.FC<CustomDataEditorProps> = ({
   data, 
   onClose 
 }) => {
-  const { setCustomData, deleteCustomData } = useUserManagement();
+  const { setCustomData, deleteCustomData, getUserById } = useUserManagement();
+  
+  // Get current user data from context to ensure we have the latest data
+  const currentUser = getUserById(userId);
+  const currentData = currentUser?.customData || data || {};
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -27,6 +31,8 @@ export const CustomDataEditor: React.FC<CustomDataEditorProps> = ({
       await setCustomData(userId, newKey.trim(), newValue);
       setNewKey('');
       setNewValue('');
+      // Close modal after successful add
+      onClose();
     } catch (error) {
       console.error('Failed to add custom data:', error);
     } finally {
@@ -42,6 +48,8 @@ export const CustomDataEditor: React.FC<CustomDataEditorProps> = ({
       await setCustomData(userId, key, editingValue);
       setEditingKey(null);
       setEditingValue('');
+      // Close modal after successful edit
+      onClose();
     } catch (error) {
       console.error('Failed to update custom data:', error);
     } finally {
@@ -55,6 +63,8 @@ export const CustomDataEditor: React.FC<CustomDataEditorProps> = ({
     setIsLoading(true);
     try {
       await deleteCustomData(userId, key);
+      // Close modal after successful delete
+      onClose();
     } catch (error) {
       console.error('Failed to delete custom data:', error);
     } finally {
@@ -84,11 +94,11 @@ export const CustomDataEditor: React.FC<CustomDataEditorProps> = ({
       {/* Existing Custom Data */}
       <div className="space-y-2">
         <h4 className="text-sm font-medium text-gray-700">Existing Data</h4>
-        {Object.entries(data).length === 0 ? (
+        {Object.entries(currentData).length === 0 ? (
           <p className="text-sm text-gray-500 italic">No custom data defined</p>
         ) : (
           <div className="space-y-2">
-            {Object.entries(data).map(([key, value]) => (
+            {Object.entries(currentData).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">

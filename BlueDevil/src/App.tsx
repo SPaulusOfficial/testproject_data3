@@ -13,7 +13,7 @@ import { Agents } from '@/pages/Agents'
 import { Projects } from '@/pages/Projects'
 import { Workflows } from '@/pages/Workflows'
 import { SettingsPage } from '@/pages/Settings'
-import { UserManagement } from '@/pages/UserManagement'
+import UserManagement from '@/pages/UserManagement'
 // Platzhalter-Imports für Pre Sales Funktionen
 import { VideoZuText } from '@/pages/rampup/VideoZuText'
 import { AudioZuText } from '@/pages/rampup/AudioZuText'

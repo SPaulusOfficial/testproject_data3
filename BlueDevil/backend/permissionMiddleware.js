@@ -1,5 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const permissionService = require('./permissionService');
+
+// Function to get pool safely - avoid circular dependency
+async function getPoolSafely() {
+  if (typeof global.getPool === 'function') {
+    return await global.getPool();
+  }
+  return null;
+}
 
 // Load permission definitions
 function loadPermissions() {
@@ -29,36 +38,69 @@ function loadPermissions() {
 }
 
 // Check if user has specific permission
-function hasPermission(user, requiredPermission) {
+async function hasPermission(user, requiredPermission) {
   console.log(`🔐 Checking permission: ${requiredPermission} for user: ${user.username}`);
+  console.log(`🔐 User ID: ${user.userId}`);
   
-  // Admin has all permissions
+  // Check if user is active first
+  if (user.isActive === false) {
+    console.log('❌ User is inactive - access denied');
+    return false;
+  }
+  
+  // Admin has all permissions (if active)
   if (user.globalRole === 'admin') {
     console.log('✅ Admin user - access granted');
     return true;
   }
   
-  // Get user's permission sets from custom data
-  const userPermissionSets = user.customData?.permissionSets || [];
-  const { permissionSets } = loadPermissions();
-  
-  // Check if user has any permission set that includes the required permission
-  for (const permissionSet of userPermissionSets) {
-    if (permissionSets[permissionSet] && permissionSets[permissionSet].includes(requiredPermission)) {
-      console.log(`✅ Permission granted via set: ${permissionSet}`);
-      return true;
+  // Use EXACT same logic as permission API
+  try {
+    if (!getPool) {
+      console.error('❌ getPool not available, falling back to user object');
+      // Fallback to user object data
+      const userPermissions = user.customData?.permissions || [];
+      const userPermissionSets = user.customData?.permissionSets || [];
+      const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
+      
+      console.log(`🔍 FALLBACK CHECK for user ${user.username}:`);
+      console.log(`🔍 User permissions:`, userPermissions);
+      console.log(`🔍 User permission sets:`, userPermissionSets);
+      console.log(`🔍 Effective permissions:`, effectivePermissions);
+      
+      return effectivePermissions.includes(requiredPermission);
     }
+    
+    // Use the same logic as permissionService.js
+    const pool = await getPoolSafely();
+    console.log('🔍 Debug: pool type:', typeof pool);
+    console.log('🔍 Debug: pool constructor:', pool?.constructor?.name);
+    console.log('🔍 Debug: pool has connect method:', typeof pool?.connect === 'function');
+    
+    if (pool && typeof pool.connect === 'function') {
+      const userPermissions = await permissionService.getUserPermissionsFromDatabase(user.userId, pool);
+      const hasPermission = userPermissions.effectivePermissions.includes(requiredPermission);
+      
+      console.log(`✅ Permission check result: ${hasPermission} for '${requiredPermission}'`);
+      return hasPermission;
+    } else {
+      console.log('⚠️ No valid pool available, using fallback');
+      throw new Error('No valid database pool available');
+    }
+  } catch (error) {
+    console.error('❌ Error checking permission:', error);
+    // Fallback to user object data on error
+    const userPermissions = user.customData?.permissions || [];
+    const userPermissionSets = user.customData?.permissionSets || [];
+    const effectivePermissions = permissionService.getEffectivePermissions(userPermissions, userPermissionSets);
+    
+    console.log(`🔍 ERROR FALLBACK for user ${user.username}:`);
+    console.log(`🔍 User permissions:`, userPermissions);
+    console.log(`🔍 User permission sets:`, userPermissionSets);
+    console.log(`🔍 Effective permissions:`, effectivePermissions);
+    
+    return effectivePermissions.includes(requiredPermission);
   }
-  
-  // Check individual permissions
-  const userPermissions = user.customData?.permissions || [];
-  if (userPermissions.includes(requiredPermission)) {
-    console.log(`✅ Direct permission granted: ${requiredPermission}`);
-    return true;
-  }
-  
-  console.log(`❌ Permission denied: ${requiredPermission}`);
-  return false;
 }
 
 // Middleware to require specific permission
@@ -68,17 +110,22 @@ function requirePermission(permission) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    if (hasPermission(req.user, permission)) {
-      next();
-    } else {
-      console.log(`❌ Access denied: User ${req.user.username} lacks permission: ${permission}`);
-      res.status(403).json({ 
-        error: 'Access denied', 
-        message: `Permission '${permission}' required`,
-        user: req.user.username,
-        requiredPermission: permission
-      });
-    }
+    hasPermission(req.user, permission).then(granted => {
+      if (granted) {
+        next();
+      } else {
+        console.log(`❌ Access denied: User ${req.user.username} lacks permission: ${permission}`);
+        res.status(403).json({ 
+          error: 'Access denied', 
+          message: `Permission '${permission}' required`,
+          user: req.user.username,
+          requiredPermission: permission
+        });
+      }
+    }).catch(error => {
+      console.error('Error in requirePermission middleware:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    });
   };
 }
 
@@ -89,19 +136,22 @@ function requireAnyPermission(permissions) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    for (const permission of permissions) {
-      if (hasPermission(req.user, permission)) {
-        console.log(`✅ Access granted via permission: ${permission}`);
+    Promise.all(permissions.map(permission => hasPermission(req.user, permission))).then(results => {
+      const granted = results.some(granted => granted);
+      if (granted) {
+        console.log(`✅ Access granted via permission: ${permissions.join(', ')}`);
         return next();
       }
-    }
-    
-    console.log(`❌ Access denied: User ${req.user.username} lacks any of permissions: ${permissions.join(', ')}`);
-    res.status(403).json({ 
-      error: 'Access denied', 
-      message: `One of permissions required: ${permissions.join(', ')}`,
-      user: req.user.username,
-      requiredPermissions: permissions
+      console.log(`❌ Access denied: User ${req.user.username} lacks any of permissions: ${permissions.join(', ')}`);
+      res.status(403).json({ 
+        error: 'Access denied', 
+        message: `One of permissions required: ${permissions.join(', ')}`,
+        user: req.user.username,
+        requiredPermissions: permissions
+      });
+    }).catch(error => {
+      console.error('Error in requireAnyPermission middleware:', error);
+      res.status(500).json({ error: 'Internal server error' });
     });
   };
 }
@@ -113,21 +163,26 @@ function requireAllPermissions(permissions) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    for (const permission of permissions) {
-      if (!hasPermission(req.user, permission)) {
-        console.log(`❌ Access denied: User ${req.user.username} lacks permission: ${permission}`);
-        return res.status(403).json({ 
+    Promise.all(permissions.map(permission => hasPermission(req.user, permission))).then(results => {
+      const allGranted = results.every(granted => granted);
+      if (allGranted) {
+        console.log(`✅ Access granted: User ${req.user.username} has all required permissions`);
+        next();
+      } else {
+        const missingPermissions = results.filter(granted => !granted).map(permission => permission);
+        console.log(`❌ Access denied: User ${req.user.username} lacks permission: ${missingPermissions.join(', ')}`);
+        res.status(403).json({ 
           error: 'Access denied', 
           message: `All permissions required: ${permissions.join(', ')}`,
           user: req.user.username,
           requiredPermissions: permissions,
-          missingPermission: permission
+          missingPermissions: missingPermissions
         });
       }
-    }
-    
-    console.log(`✅ Access granted: User ${req.user.username} has all required permissions`);
-    next();
+    }).catch(error => {
+      console.error('Error in requireAllPermissions middleware:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    });
   };
 }
 
