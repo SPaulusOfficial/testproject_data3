@@ -4,17 +4,13 @@ export interface Project {
   slug: string;
   description?: string;
   ownerId: string;
-  settings: Record<string, any>;
-  metadata: {
-    version: number;
-    lastModified: Date;
-    modifiedBy?: string;
-    changeHistory: ChangeRecord[];
-  };
-  environmentConfig: Record<string, any>;
-  isActive: boolean;
+  ownerName?: string;
+  settings?: Record<string, any>;
+  metadata?: Record<string, any>;
+  environmentConfig?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
+  isActive: boolean;
 }
 
 export interface ProjectMember {
@@ -23,17 +19,18 @@ export interface ProjectMember {
   projectId: string;
   role: 'owner' | 'admin' | 'member' | 'viewer';
   permissions: Record<string, any>;
-  profileData: Record<string, any>;
-  settings: Record<string, any>;
+  profileData?: Record<string, any>;
+  settings?: Record<string, any>;
   lastAccessed?: Date;
   joinedAt: Date;
-  user: {
-    email: string;
+  user?: {
+    id: string;
     username: string;
+    email: string;
     firstName: string;
     lastName: string;
-    avatar?: string;
     globalRole: string;
+    isActive: boolean;
   };
 }
 
@@ -75,7 +72,6 @@ export interface ProjectCreateRequest {
   slug: string;
   description?: string;
   settings?: Record<string, any>;
-  environmentConfig?: Record<string, any>;
 }
 
 export interface ProjectUpdateRequest {
@@ -83,17 +79,22 @@ export interface ProjectUpdateRequest {
   slug?: string;
   description?: string;
   settings?: Record<string, any>;
-  environmentConfig?: Record<string, any>;
   isActive?: boolean;
 }
 
 export interface ProjectMemberRequest {
-  email: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  userId: string;
+  role: 'admin' | 'member' | 'viewer';
+  permissions?: Record<string, any>;
 }
 
 export interface ProjectSwitchResponse {
   project: Project;
   membership: ProjectMembership;
+}
+
+export interface ProjectWithMembers extends Project {
+  memberCount: number;
+  members?: ProjectMember[];
 }
 

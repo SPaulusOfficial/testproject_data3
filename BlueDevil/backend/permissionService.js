@@ -387,6 +387,17 @@ class PermissionService {
     }
   }
 
+  // Convenience method for checking if user has a specific permission
+  async userHasPermission(userId, permission) {
+    try {
+      const pool = await global.getPool();
+      return await this.checkUserPermission(userId, permission, pool);
+    } catch (error) {
+      console.error('❌ Error in userHasPermission:', error);
+      return false;
+    }
+  }
+
   // Update user permissions in database (CENTRAL FUNCTION)
   async updateUserPermissions(userId, permissions, permissionSets, grantedBy, pool) {
     try {

@@ -11,6 +11,7 @@ import { ProtectedRouteWrapper } from '@/components/ProtectedRouteWrapper'
 import { Dashboard } from '@/pages/Dashboard'
 import { Agents } from '@/pages/Agents'
 import { Projects } from '@/pages/Projects'
+import ProjectDetail from '@/pages/ProjectDetail'
 import { Workflows } from '@/pages/Workflows'
 import { SettingsPage } from '@/pages/Settings'
 import UserManagement from '@/pages/UserManagement'
@@ -172,6 +173,11 @@ function App() {
             <Route path="/projects" element={
               <PageWithInfo>
                 <Projects />
+              </PageWithInfo>
+            } />
+            <Route path="/projects/:id" element={
+              <PageWithInfo>
+                <ProjectDetail />
               </PageWithInfo>
             } />
             <Route path="/workflows" element={

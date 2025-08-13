@@ -16,7 +16,6 @@ interface UserManagementContextType {
   fetchUsers: (page?: number, limit?: number, search?: string) => Promise<void>;
   createUser: (userData: UserCreateRequest) => Promise<User>;
   updateUser: (id: string, userData: UserUpdateRequest) => Promise<User>;
-  deleteUser: (id: string) => Promise<void>;
   toggleUserStatus: (id: string, isActive: boolean) => Promise<void>;
   
   // Custom Data Management
@@ -304,44 +303,7 @@ export const UserManagementProvider: React.FC<UserManagementProviderProps> = ({ 
     }
   };
 
-  // Delete user
-  const deleteUser = async (id: string): Promise<void> => {
-    if (!hasPermission('UserManagement')) {
-      throw new Error('Access denied: User Management permission required');
-    }
 
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Call the real API
-      const response = await fetch(`http://localhost:3002/api/users/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user');
-      }
-
-      // Remove from local state
-      setUsers(prev => prev.filter(user => user.id !== id));
-      setTotalUsers(prev => prev - 1);
-      
-      console.log(`✅ User ${id} deleted successfully`);
-      
-      // Refresh the user list to get updated data
-      await fetchUsers(currentPage);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete user');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Toggle user status
   const toggleUserStatus = async (id: string, isActive: boolean): Promise<void> => {
@@ -593,7 +555,7 @@ export const UserManagementProvider: React.FC<UserManagementProviderProps> = ({ 
     fetchUsers,
     createUser,
     updateUser,
-    deleteUser,
+    
     toggleUserStatus,
     setCustomData,
     getCustomData,

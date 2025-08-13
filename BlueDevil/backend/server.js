@@ -698,7 +698,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     console.log('🔍 Querying user in database...');
     const result = await client.query(`
-      SELECT id, username, email, password_hash, first_name, last_name, global_role, custom_data, metadata
+      SELECT id, username, email, password_hash, first_name, last_name, global_role, custom_data, metadata, is_active
       FROM users WHERE username = $1 OR email = $1
     `, [username]);
     
@@ -710,6 +710,13 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     const user = result.rows[0];
+    
+    // Check if user is active
+    if (!user.is_active) {
+      console.log('❌ Login failed: User is inactive');
+      return res.status(401).json({ error: 'Account is deactivated. Please contact your administrator.' });
+    }
+    
     console.log('🔐 Verifying password...');
     const validPassword = await bcrypt.compare(password, user.password_hash);
     
@@ -925,7 +932,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Create user
-app.post('/api/users', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     console.log('👤 Creating new user...');
     debugApi('Creating new user', req.body);
@@ -972,7 +979,7 @@ app.post('/api/users', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Update user
-app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/api/users/:id', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { username, email, firstName, lastName, phone, globalRole, customData, metadata } = req.body;
@@ -1027,7 +1034,7 @@ app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Toggle user active status
-app.patch('/api/users/:id/status', authenticateToken, requireAdmin, async (req, res) => {
+app.patch('/api/users/:id/status', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
@@ -1038,6 +1045,12 @@ app.patch('/api/users/:id/status', authenticateToken, requireAdmin, async (req, 
     if (typeof isActive !== 'boolean') {
       console.log('❌ Invalid isActive parameter');
       return res.status(400).json({ error: 'isActive must be a boolean' });
+    }
+    
+    // Prevent users from deactivating themselves
+    if (req.user.userId === id && !isActive) {
+      console.log('❌ User cannot deactivate themselves:', id);
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
     }
     
     const pool = await getPool();
@@ -1073,33 +1086,7 @@ app.patch('/api/users/:id/status', authenticateToken, requireAdmin, async (req, 
   }
 });
 
-// Delete user
-app.delete('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log(`🗑️  Deleting user ${id}...`);
-    debugApi(`Deleting user ${id}`);
-    
-    const pool = await getPool();
-    const client = await pool.connect();
-    
-    const result = await client.query(`DELETE FROM users WHERE id = $1 RETURNING id`, [id]);
-    
-    if (result.rows.length === 0) {
-      console.log('❌ User not found for deletion:', id);
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    client.release();
-    console.log('✅ User deleted successfully:', id);
-    res.json({ success: true });
-  } catch (error) {
-    logError(error, `DELETE_USER_${req.params.id}`);
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
+
 
 // =====================================================
 // PROJECT MANAGEMENT ENDPOINTS
@@ -1115,9 +1102,19 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     
     const result = await client.query(`
-      SELECT p.*, u.username as owner_name
+      SELECT 
+        p.*, 
+        u.username as owner_name,
+        COALESCE(member_counts.member_count, 0) as member_count
       FROM projects p
       LEFT JOIN users u ON p.owner_id = u.id
+      LEFT JOIN (
+        SELECT 
+          project_id, 
+          COUNT(*) as member_count 
+        FROM project_memberships 
+        GROUP BY project_id
+      ) member_counts ON p.id = member_counts.project_id
       ORDER BY p.created_at DESC
     `);
     
@@ -1126,12 +1123,17 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
     const projects = result.rows.map(project => ({
       id: project.id,
       name: project.name,
+      slug: project.slug,
       description: project.description,
       ownerId: project.owner_id,
       ownerName: project.owner_name,
       settings: project.settings || {},
+      metadata: project.metadata || {},
+      environmentConfig: project.environment_config || {},
       createdAt: project.created_at,
-      updatedAt: project.updated_at
+      updatedAt: project.updated_at,
+      isActive: project.is_active,
+      memberCount: parseInt(project.member_count) || 0
     }));
     
     console.log(`✅ Retrieved ${projects.length} projects`);
@@ -1144,27 +1146,44 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
 });
 
 // Create project
-app.post('/api/projects', authenticateToken, async (req, res) => {
+app.post('/api/projects', authenticateToken, requirePermission('ProjectCreation'), async (req, res) => {
   try {
-    const { name, description, settings = {} } = req.body;
+    const { name, slug, description, settings = {} } = req.body;
     const userId = req.user.userId;
     
     console.log('📁 Creating new project...');
-    debugApi('Creating new project', { name, description, userId });
+    debugApi('Creating new project', { name, slug, description, userId });
     
-    if (!name) {
-      console.log('❌ Project creation failed: Missing name');
-      return res.status(400).json({ error: 'Project name is required' });
+    if (!name || !slug) {
+      console.log('❌ Project creation failed: Missing name or slug');
+      return res.status(400).json({ error: 'Project name and slug are required' });
     }
     
     const pool = await getPool();
     const client = await pool.connect();
     
+    // Check if slug already exists
+    const slugCheck = await client.query(`
+      SELECT id FROM projects WHERE slug = $1
+    `, [slug]);
+    
+    if (slugCheck.rows.length > 0) {
+      client.release();
+      console.log('❌ Project creation failed: Slug already exists');
+      return res.status(400).json({ error: 'Project slug already exists' });
+    }
+    
     const result = await client.query(`
-      INSERT INTO projects (name, description, owner_id, settings)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO projects (name, slug, description, owner_id, settings)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [name, description, userId, JSON.stringify(settings)]);
+    `, [name, slug, description, userId, JSON.stringify(settings)]);
+    
+    // Add owner as project member
+    await client.query(`
+      INSERT INTO project_memberships (user_id, project_id, role)
+      VALUES ($1, $2, $3)
+    `, [userId, result.rows[0].id, 'owner']);
     
     client.release();
     
@@ -1173,15 +1192,229 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
     res.status(201).json({
       id: project.id,
       name: project.name,
+      slug: project.slug,
       description: project.description,
       ownerId: project.owner_id,
       settings: project.settings || {},
-      createdAt: project.created_at
+      metadata: project.metadata || {},
+      environmentConfig: project.environment_config || {},
+      createdAt: project.created_at,
+      updatedAt: project.updated_at,
+      isActive: project.is_active,
+      memberCount: 1
     });
   } catch (error) {
     logError(error, 'CREATE_PROJECT');
     console.error('Error creating project:', error);
-    res.status(500).json({ error: 'Failed to create project' });
+    if (error.code === '23505') { // Unique constraint violation
+      res.status(400).json({ error: 'Project slug already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to create project' });
+    }
+  }
+});
+
+// Get project details with members
+app.get('/api/projects/:id', authenticateToken, requirePermission('ProjectManagement'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`📁 Fetching project details for ${id}...`);
+    debugApi(`Fetching project details for ${id}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get project details
+    const projectResult = await client.query(`
+      SELECT 
+        p.*, 
+        u.username as owner_name
+      FROM projects p
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.id = $1
+    `, [id]);
+    
+    if (projectResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    // Get project members
+    const membersResult = await client.query(`
+      SELECT 
+        pm.*,
+        u.username,
+        u.email,
+        u.first_name,
+        u.last_name,
+        u.global_role,
+        u.is_active
+      FROM project_memberships pm
+      LEFT JOIN users u ON pm.user_id = u.id
+      WHERE pm.project_id = $1
+      ORDER BY pm.joined_at
+    `, [id]);
+    
+    client.release();
+    
+    const project = projectResult.rows[0];
+    const members = membersResult.rows.map(member => ({
+      id: member.id,
+      userId: member.user_id,
+      projectId: member.project_id,
+      role: member.role,
+      permissions: member.permissions || {},
+      profileData: member.profile_data || {},
+      settings: member.settings || {},
+      lastAccessed: member.last_accessed,
+      joinedAt: member.joined_at,
+      user: {
+        id: member.user_id,
+        username: member.username,
+        email: member.email,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        globalRole: member.global_role,
+        isActive: member.is_active
+      }
+    }));
+    
+    console.log(`✅ Retrieved project details for ${project.name} with ${members.length} members`);
+    res.json({
+      id: project.id,
+      name: project.name,
+      slug: project.slug,
+      description: project.description,
+      ownerId: project.owner_id,
+      ownerName: project.owner_name,
+      settings: project.settings || {},
+      metadata: project.metadata || {},
+      environmentConfig: project.environment_config || {},
+      createdAt: project.created_at,
+      updatedAt: project.updated_at,
+      isActive: project.is_active,
+      members: members,
+      memberCount: members.length
+    });
+  } catch (error) {
+    logError(error, `GET_PROJECT_DETAILS_${req.params.id}`);
+    console.error('Error fetching project details:', error);
+    res.status(500).json({ error: 'Failed to fetch project details' });
+  }
+});
+
+// Add member to project
+app.post('/api/projects/:id/members', authenticateToken, requirePermission('ProjectManagement'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, role = 'member', permissions = {} } = req.body;
+    
+    console.log(`👥 Adding member to project ${id}...`);
+    debugApi(`Adding member to project ${id}`, { userId, role });
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Check if project exists
+    const projectCheck = await client.query(`
+      SELECT id FROM projects WHERE id = $1
+    `, [id]);
+    
+    if (projectCheck.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    // Check if user exists
+    const userCheck = await client.query(`
+      SELECT id FROM users WHERE id = $1
+    `, [userId]);
+    
+    if (userCheck.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Check if user is already a member
+    const memberCheck = await client.query(`
+      SELECT id FROM project_memberships WHERE user_id = $1 AND project_id = $2
+    `, [userId, id]);
+    
+    if (memberCheck.rows.length > 0) {
+      client.release();
+      return res.status(400).json({ error: 'User is already a member of this project' });
+    }
+    
+    // Add member
+    const result = await client.query(`
+      INSERT INTO project_memberships (user_id, project_id, role, permissions)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [userId, id, role, JSON.stringify(permissions)]);
+    
+    client.release();
+    
+    console.log(`✅ Member added to project ${id}`);
+    res.status(201).json({
+      success: true,
+      message: 'Member added successfully',
+      membership: result.rows[0]
+    });
+  } catch (error) {
+    logError(error, `ADD_PROJECT_MEMBER_${req.params.id}`);
+    console.error('Error adding project member:', error);
+    res.status(500).json({ error: 'Failed to add project member' });
+  }
+});
+
+// Remove member from project
+app.delete('/api/projects/:id/members/:userId', authenticateToken, requirePermission('ProjectManagement'), async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    
+    console.log(`👥 Removing member from project ${id}...`);
+    debugApi(`Removing member from project ${id}`, { userId });
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Check if membership exists
+    const membershipCheck = await client.query(`
+      SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2
+    `, [userId, id]);
+    
+    if (membershipCheck.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Membership not found' });
+    }
+    
+    // Prevent removing project owner
+    if (membershipCheck.rows[0].role === 'owner') {
+      client.release();
+      return res.status(400).json({ error: 'Cannot remove project owner' });
+    }
+    
+    // Remove member
+    await client.query(`
+      DELETE FROM project_memberships WHERE user_id = $1 AND project_id = $2
+    `, [userId, id]);
+    
+    client.release();
+    
+    console.log(`✅ Member removed from project ${id}`);
+    res.json({
+      success: true,
+      message: 'Member removed successfully'
+    });
+  } catch (error) {
+    logError(error, `REMOVE_PROJECT_MEMBER_${req.params.id}_${req.params.userId}`);
+    console.error('Error removing project member:', error);
+    res.status(500).json({ error: 'Failed to remove project member' });
   }
 });
 
@@ -1261,7 +1494,7 @@ app.post('/api/permissions/check', authenticateToken, async (req, res) => {
 });
 
 // Update user permissions
-app.put('/api/users/:userId/permissions', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/api/users/:userId/permissions', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { userId } = req.params;
     const { permissions, permissionSets } = req.body;
