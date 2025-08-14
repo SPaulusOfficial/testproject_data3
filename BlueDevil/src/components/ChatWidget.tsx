@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useChat } from '@/contexts/ChatContext'
 import { VoiceRecorder } from './VoiceRecorder'
+import { PermissionGuard } from './PermissionGuard'
 
 interface ChatWidgetProps {
   className?: string
@@ -71,9 +72,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ className = '' }) => {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
-      {/* Chat Window */}
-      {isOpen && (
+    <PermissionGuard permission="Chat">
+      <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
+        {/* Chat Window */}
+        {isOpen && (
         <div className="mb-4 w-96 h-96 bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-digital-blue to-deep-blue-2 text-white rounded-t-2xl">
@@ -206,6 +208,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ className = '' }) => {
           </svg>
         )}
       </button>
-    </div>
+      </div>
+    </PermissionGuard>
   )
 } 

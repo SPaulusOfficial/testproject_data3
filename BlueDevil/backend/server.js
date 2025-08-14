@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const fileUpload = require('express-fileupload');
 const userService = require('./userService');
 const projectService = require('./projectService');
 const notificationService = require('./notificationService');
@@ -207,8 +208,22 @@ console.log(`   - Database Port: ${process.env.VITE_DB_PORT || 5432}`);
 console.log(`   - Database Name: ${process.env.VITE_DB_NAME || 'platform_db'}`);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  debug: true,
+  useTempFiles: false,
+  parseNested: true
+}));
+
+// Serve static files (avatars)
+app.use('/avatars', express.static(path.join(__dirname, '../public/avatars')));
 
 // Enhanced request logging middleware
 app.use((req, res, next) => {
@@ -489,7 +504,7 @@ async function initializeDatabase() {
         last_name VARCHAR(100) NOT NULL DEFAULT '',
         avatar_url VARCHAR(500),
         phone VARCHAR(20),
-        global_role VARCHAR(20) DEFAULT 'user' CHECK (global_role IN ('admin', 'user', 'guest')),
+        global_role VARCHAR(20) DEFAULT 'user' CHECK (global_role IN ('system_admin', 'project_admin', 'user', 'guest')),
         two_factor_enabled BOOLEAN DEFAULT FALSE,
         two_factor_secret VARCHAR(32),
         failed_login_attempts INTEGER DEFAULT 0,
@@ -1711,6 +1726,639 @@ app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req
     logError(error, `GET_UNREAD_COUNT_${req.params.userId}`);
     console.error('Error getting unread count:', error);
     res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// =====================================================
+// PASSWORD MANAGEMENT ENDPOINTS
+// =====================================================
+
+// Import services
+const passwordService = require('./passwordService');
+const avatarService = require('./avatarService');
+
+// Request password reset (user-initiated)
+app.post('/api/auth/request-password-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    console.log(`🔄 Password reset requested for: ${email}`);
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Validate email domain against whitelist
+    if (!passwordService.isEmailDomainAllowed(email)) {
+      console.log(`❌ Email domain not allowed: ${email}`);
+      return res.status(403).json({ 
+        error: 'Email domain not allowed for password reset',
+        message: 'Only company email addresses are allowed for password reset'
+      });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Check if user exists
+    const userResult = await client.query(`
+      SELECT id, email, username, first_name, last_name, is_active 
+      FROM users 
+      WHERE email = $1
+    `, [email]);
+    
+    client.release();
+    
+    if (userResult.rows.length === 0) {
+      console.log(`❌ User not found: ${email}`);
+      // Don't reveal if user exists or not for security
+      return res.json({ 
+        success: true, 
+        message: 'If the email address exists in our system, you will receive a password reset link shortly.' 
+      });
+    }
+    
+    const user = userResult.rows[0];
+    
+    if (!user.is_active) {
+      console.log(`❌ Inactive user: ${email}`);
+      return res.status(403).json({ error: 'Account is deactivated' });
+    }
+    
+    // Generate reset token
+    const resetToken = passwordService.generateResetToken();
+    passwordService.storeResetToken(email, resetToken);
+    
+    // Generate reset URL
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`;
+    
+    // Generate email content
+    const emailContent = passwordService.generateResetEmailContent(resetToken, resetUrl);
+    
+    // TODO: Send email using your email service
+    // For now, just log the token (in production, send actual email)
+    console.log(`📧 Password reset email would be sent to: ${email}`);
+    console.log(`🔗 Reset URL: ${resetUrl}?token=${resetToken}`);
+    
+    // In production, replace this with actual email sending:
+    // await emailService.sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
+    
+    console.log(`✅ Password reset request processed for: ${email}`);
+    res.json({ 
+      success: true, 
+      message: 'If the email address exists in our system, you will receive a password reset link shortly.' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error requesting password reset:', error);
+    res.status(500).json({ error: 'Failed to process password reset request' });
+  }
+});
+
+// Reset password with token
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    console.log('🔄 Password reset with token requested');
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+    
+    // Validate token
+    const tokenValidation = passwordService.validateResetToken(token);
+    if (!tokenValidation.isValid) {
+      console.log(`❌ Invalid reset token: ${tokenValidation.error}`);
+      return res.status(400).json({ error: tokenValidation.error });
+    }
+    
+    // Validate password strength
+    const passwordValidation = passwordService.validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      console.log(`❌ Password validation failed:`, passwordValidation.errors);
+      return res.status(400).json({ 
+        error: 'Password does not meet requirements',
+        details: passwordValidation.errors 
+      });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Hash new password
+    const hashedPassword = await passwordService.hashPassword(newPassword);
+    
+    // Update user password
+    const updateResult = await client.query(`
+      UPDATE users 
+      SET password_hash = $1, updated_at = NOW() 
+      WHERE email = $2 
+      RETURNING id, email, username
+    `, [hashedPassword, tokenValidation.email]);
+    
+    client.release();
+    
+    if (updateResult.rows.length === 0) {
+      console.log(`❌ User not found for password reset: ${tokenValidation.email}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Mark token as used
+    passwordService.markTokenAsUsed(token);
+    
+    console.log(`✅ Password reset successful for: ${tokenValidation.email}`);
+    res.json({ 
+      success: true, 
+      message: 'Password has been reset successfully. You can now log in with your new password.' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resetting password:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Admin set password for user
+app.post('/api/admin/users/:id/set-password', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sendEmail = true } = req.body;
+    
+    console.log(`🔄 Admin password set requested for user: ${id}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Check if user exists
+    const userResult = await client.query(`
+      SELECT id, email, username, first_name, last_name, is_active 
+      FROM users 
+      WHERE id = $1
+    `, [id]);
+    
+    if (userResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    if (!user.is_active) {
+      client.release();
+      return res.status(403).json({ error: 'Cannot set password for deactivated user' });
+    }
+    
+    // Generate temporary password
+    const temporaryPassword = passwordService.generateTemporaryPassword();
+    const hashedPassword = await passwordService.hashPassword(temporaryPassword);
+    
+    // Update user password
+    await client.query(`
+      UPDATE users 
+      SET password_hash = $1, updated_at = NOW() 
+      WHERE id = $2
+    `, [hashedPassword, id]);
+    
+    client.release();
+    
+    // Send email if requested
+    if (sendEmail) {
+      const emailContent = passwordService.generateAdminPasswordEmailContent(user.email, temporaryPassword);
+      
+      // TODO: Send email using your email service
+      console.log(`📧 Admin password set email would be sent to: ${user.email}`);
+      console.log(`🔑 Temporary password: ${temporaryPassword}`);
+      
+      // In production, replace this with actual email sending:
+      // await emailService.sendEmail(user.email, emailContent.subject, emailContent.html, emailContent.text);
+    }
+    
+    console.log(`✅ Admin password set successful for: ${user.email}`);
+    res.json({ 
+      success: true, 
+      message: 'Password has been set successfully',
+      temporaryPassword: sendEmail ? undefined : temporaryPassword // Only return if not sending email
+    });
+    
+  } catch (error) {
+    console.error('❌ Error setting admin password:', error);
+    res.status(500).json({ error: 'Failed to set password' });
+  }
+});
+
+// Change password (user-initiated from profile)
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+    
+    console.log(`🔄 Password change requested for user: ${userId}`);
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+    
+    // Validate password strength
+    const passwordValidation = passwordService.validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      console.log(`❌ Password validation failed:`, passwordValidation.errors);
+      return res.status(400).json({ 
+        error: 'New password does not meet requirements',
+        details: passwordValidation.errors 
+      });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get current user password hash
+    const userResult = await client.query(`
+      SELECT password_hash, email 
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Verify current password
+    const isCurrentPasswordValid = await passwordService.verifyPassword(currentPassword, user.password_hash);
+    if (!isCurrentPasswordValid) {
+      client.release();
+      console.log(`❌ Invalid current password for user: ${userId}`);
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    
+    // Hash new password
+    const hashedPassword = await passwordService.hashPassword(newPassword);
+    
+    // Update password
+    await client.query(`
+      UPDATE users 
+      SET password_hash = $1, updated_at = NOW() 
+      WHERE id = $2
+    `, [hashedPassword, userId]);
+    
+    client.release();
+    
+    console.log(`✅ Password change successful for user: ${userId}`);
+    res.json({ 
+      success: true, 
+      message: 'Password has been changed successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
+// Validate reset token (for frontend)
+app.get('/api/auth/validate-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const tokenValidation = passwordService.validateResetToken(token);
+    
+    if (tokenValidation.isValid) {
+      res.json({ 
+        valid: true, 
+        email: tokenValidation.email 
+      });
+    } else {
+      res.json({ 
+        valid: false, 
+        error: tokenValidation.error 
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error validating reset token:', error);
+    res.status(500).json({ error: 'Failed to validate token' });
+  }
+});
+
+// Get password requirements (for frontend)
+app.get('/api/auth/password-requirements', (req, res) => {
+  res.json({
+    requirements: {
+      minLength: 8,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true
+    },
+    message: 'Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.'
+  });
+});
+
+// =====================================================
+// AVATAR MANAGEMENT ENDPOINTS
+// =====================================================
+
+// Upload avatar
+app.post('/api/users/:id/avatar', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    console.log(`🖼️ Avatar upload requested for user: ${id}`);
+    console.log(`📁 Request files:`, req.files ? Object.keys(req.files) : 'No files');
+    console.log(`📁 Request headers:`, Object.keys(req.headers));
+    console.log(`📁 Content-Type:`, req.headers['content-type']);
+    console.log(`📁 Content-Length:`, req.headers['content-length']);
+    console.log(`🔑 Authorization header:`, req.headers.authorization ? 'Present' : 'Missing');
+    console.log(`🔑 User from token:`, req.user);
+    console.log(`📁 Request body type:`, typeof req.body);
+    console.log(`📁 Request body keys:`, req.body ? Object.keys(req.body) : 'No body');
+    
+    // Check if user is updating their own avatar or has admin rights
+    if (id !== userId && !req.user.permissions.includes('UserManagement')) {
+      console.log(`❌ Authorization failed: user ${userId} trying to update ${id}`);
+      return res.status(403).json({ error: 'Not authorized to update this user\'s avatar' });
+    }
+    
+    // Check if file was uploaded
+    if (!req.files || !req.files.avatar) {
+      console.log(`❌ No avatar file provided in request`);
+      return res.status(400).json({ error: 'No avatar file provided' });
+    }
+    
+    const file = req.files.avatar;
+    const buffer = file.data;
+    const mimeType = file.mimetype;
+    
+    console.log(`📁 Received avatar: ${file.name}, size: ${buffer.length} bytes, type: ${mimeType}`);
+    console.log(`🔍 File object keys:`, Object.keys(file));
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get current avatar info for cleanup
+    const currentAvatarResult = await client.query(`
+      SELECT avatar_url, avatar_storage_type 
+      FROM users 
+      WHERE id = $1
+    `, [id]);
+    
+    if (currentAvatarResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const currentAvatar = currentAvatarResult.rows[0];
+    
+    // Store new avatar
+    const avatarInfo = await avatarService.storeAvatar(id, buffer, mimeType, file.name);
+    
+    // Update user record
+    await client.query(`
+      UPDATE users 
+      SET 
+        avatar_data = $1,
+        avatar_url = $2,
+        avatar_mime_type = $3,
+        avatar_storage_type = $4,
+        avatar_size = $5,
+        updated_at = NOW()
+      WHERE id = $6
+    `, [
+      avatarInfo.avatarData,
+      avatarInfo.avatarUrl,
+      avatarInfo.avatarMimeType,
+      avatarInfo.avatarStorageType,
+      avatarInfo.avatarSize,
+      id
+    ]);
+    
+    // Clean up old avatar if it was stored externally
+    if (currentAvatar.avatar_storage_type === 'url' && currentAvatar.avatar_url) {
+      await avatarService.deleteAvatar(id, currentAvatar.avatar_url, currentAvatar.avatar_storage_type);
+    }
+    
+    client.release();
+    
+    console.log(`✅ Avatar uploaded successfully for user: ${id}`);
+    const response = { 
+      success: true, 
+      message: 'Avatar uploaded successfully',
+      avatarInfo: {
+        storageType: avatarInfo.avatarStorageType,
+        size: avatarInfo.avatarSize,
+        mimeType: avatarInfo.avatarMimeType
+      }
+    };
+    
+    if (avatarInfo.optimization) {
+      response.avatarInfo.optimization = avatarInfo.optimization;
+    }
+    
+    console.log(`📤 Sending response:`, JSON.stringify(response, null, 2));
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Error uploading avatar:', error);
+    const errorResponse = { 
+      error: 'Failed to upload avatar',
+      details: error.message 
+    };
+    console.log(`📤 Sending error response:`, JSON.stringify(errorResponse, null, 2));
+    res.status(500).json(errorResponse);
+  }
+});
+
+// Get avatar
+app.get('/api/users/:id/avatar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🖼️ Avatar request for user: ${id}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const userResult = await client.query(`
+      SELECT avatar_data, avatar_url, avatar_mime_type, avatar_storage_type
+      FROM users 
+      WHERE id = $1
+    `, [id]);
+    
+    client.release();
+    
+    if (userResult.rows.length === 0) {
+      console.log(`❌ User not found: ${id}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    console.log(`📁 User avatar data:`, {
+      hasData: !!user.avatar_data,
+      hasUrl: !!user.avatar_url,
+      mimeType: user.avatar_mime_type,
+      storageType: user.avatar_storage_type
+    });
+    
+    const avatar = await avatarService.getAvatar(
+      id, 
+      user.avatar_data, 
+      user.avatar_url, 
+      user.avatar_mime_type, 
+      user.avatar_storage_type
+    );
+    
+    console.log(`✅ Avatar retrieved successfully for user: ${id}`);
+    res.json({ 
+      success: true, 
+      avatar 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting avatar:', error);
+    res.status(500).json({ error: 'Failed to get avatar' });
+  }
+});
+
+// Delete avatar
+app.delete('/api/users/:id/avatar', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    
+    // Check if user is deleting their own avatar or has admin rights
+    if (id !== userId && !req.user.permissions.includes('UserManagement')) {
+      return res.status(403).json({ error: 'Not authorized to delete this user\'s avatar' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Get current avatar info
+    const userResult = await client.query(`
+      SELECT avatar_url, avatar_storage_type 
+      FROM users 
+      WHERE id = $1
+    `, [id]);
+    
+    if (userResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Delete avatar files
+    await avatarService.deleteAvatar(id, user.avatar_url, user.avatar_storage_type);
+    
+    // Clear avatar data from database
+    await client.query(`
+      UPDATE users 
+      SET 
+        avatar_data = NULL,
+        avatar_url = NULL,
+        avatar_mime_type = NULL,
+        avatar_storage_type = 'none',
+        avatar_size = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+    
+    client.release();
+    
+    console.log(`✅ Avatar deleted successfully for user: ${id}`);
+    res.json({ 
+      success: true, 
+      message: 'Avatar deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error deleting avatar:', error);
+    res.status(500).json({ error: 'Failed to delete avatar' });
+  }
+});
+
+// Get avatar storage statistics (admin only)
+app.get('/api/admin/avatar-stats', authenticateToken, requirePermission('SystemConfiguration'), async (req, res) => {
+  try {
+    const stats = await avatarService.getStorageStats();
+    res.json({ 
+      success: true, 
+      stats 
+    });
+  } catch (error) {
+    console.error('❌ Error getting avatar stats:', error);
+    res.status(500).json({ error: 'Failed to get avatar statistics' });
+  }
+});
+
+// =====================================================
+// ADMIN UTILITY ENDPOINTS
+// =====================================================
+
+// Update admin roles (temporary endpoint for migration)
+app.post('/api/admin/update-roles', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔄 Updating admin roles...');
+    debugApi('Updating admin roles');
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Update all admin users to system_admin
+    const updateResult = await client.query(`
+      UPDATE users 
+      SET global_role = 'system_admin' 
+      WHERE global_role = 'admin'
+    `);
+    
+    console.log(`✅ Updated ${updateResult.rowCount} users from 'admin' to 'system_admin'`);
+    
+    // Get current user distribution
+    const countResult = await client.query(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN global_role = 'system_admin' THEN 1 END) as system_admins,
+        COUNT(CASE WHEN global_role = 'project_admin' THEN 1 END) as project_admins,
+        COUNT(CASE WHEN global_role = 'user' THEN 1 END) as regular_users,
+        COUNT(CASE WHEN global_role = 'guest' THEN 1 END) as guests
+      FROM users
+    `);
+    
+    const usersResult = await client.query(`
+      SELECT 
+        id,
+        email,
+        username,
+        first_name,
+        last_name,
+        global_role,
+        is_active
+      FROM users 
+      ORDER BY created_at
+    `);
+    
+    client.release();
+    
+    console.log('✅ Admin role update completed successfully');
+    res.json({
+      success: true,
+      message: `Updated ${updateResult.rowCount} users from 'admin' to 'system_admin'`,
+      userDistribution: countResult.rows[0],
+      users: usersResult.rows
+    });
+    
+  } catch (error) {
+    logError(error, 'UPDATE_ADMIN_ROLES');
+    console.error('Error updating admin roles:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update admin roles',
+      details: error.message
+    });
   }
 });
 

@@ -126,11 +126,20 @@ const LoginForm: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <p className="text-sm text-gray-600">
               Noch kein Konto?{' '}
               <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
                 Kontaktieren Sie den Administrator
+              </a>
+            </p>
+            <p className="text-sm text-gray-600">
+              Passwort vergessen?{' '}
+              <a 
+                href="/password-reset-request" 
+                className="font-medium text-blue-600 hover:text-blue-500"
+              >
+                Passwort zurücksetzen
               </a>
             </p>
           </div>

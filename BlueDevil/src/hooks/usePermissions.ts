@@ -105,8 +105,8 @@ export const usePermissions = () => {
     console.log('🔍 Static permissions:', user.permissions);
     console.log('🔍 Dynamic permissions:', dynamicPermissions);
     
-    // Admin has all permissions
-    if (user.role === 'admin') {
+    // System Admin and Project Admin have all permissions
+    if (user.role === 'system_admin' || user.role === 'project_admin') {
       console.log('✅ Admin user - access granted');
       return true;
     }
@@ -192,7 +192,7 @@ export const usePermissions = () => {
     canAccessKnowledgeBase,
     canAccessWorkshopManagement,
     userPermissions: getUserPermissions(),
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'system_admin' || user?.role === 'project_admin',
     isLoadingPermissions,
     refreshPermissions
   };

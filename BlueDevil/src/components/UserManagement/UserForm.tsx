@@ -129,7 +129,7 @@ export const UserForm: React.FC<UserFormProps> = ({
           username: formData.username,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          globalRole: formData.globalRole as 'admin' | 'user' | 'guest',
+          globalRole: formData.globalRole as 'system_admin' | 'project_admin' | 'user' | 'guest',
           password: formData.password
         };
         console.log('🔄 Create data:', createData);
@@ -141,7 +141,7 @@ export const UserForm: React.FC<UserFormProps> = ({
           username: formData.username,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          globalRole: formData.globalRole as 'admin' | 'user' | 'guest',
+          globalRole: formData.globalRole as 'system_admin' | 'project_admin' | 'user' | 'guest',
           isActive: formData.isActive
         };
         console.log('🔄 Update data:', updateData);
@@ -273,7 +273,8 @@ export const UserForm: React.FC<UserFormProps> = ({
               }`}
             >
               <option value="user">User</option>
-              <option value="admin">Admin</option>
+              <option value="system_admin">System Admin</option>
+              <option value="project_admin">Project Admin</option>
               <option value="guest">Guest</option>
             </select>
           </div>

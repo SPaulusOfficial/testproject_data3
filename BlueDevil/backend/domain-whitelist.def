@@ -1,0 +1,17 @@
+# Domain Whitelist for Password Reset
+# Only users with emails from these domains can request password resets
+# Format: one domain per line (without @ symbol)
+
+# Salesfive Domains
+salesfive.com
+salesfive.de
+salesfive.eu
+
+# Development/Testing Domains (remove in production)
+localhost
+test.com
+example.com
+
+# Add your company domains here
+# yourcompany.com
+# yourcompany.de

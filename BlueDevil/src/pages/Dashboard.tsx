@@ -1,70 +1,34 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProject } from '../contexts/ProjectContext'
+import { usePermissions } from '../hooks/usePermissions'
 import { 
   FolderOpen, 
   PlayCircle, 
   CheckCircle, 
   Users, 
   Settings,
-  BarChart3,
-  Calendar,
-  Target
+  BarChart3
 } from 'lucide-react'
 
 const mainMenu = [
-  { label: 'Dashboard', icon: BarChart3, path: '/dashboard' },
-  { label: 'Projekte', icon: FolderOpen, path: '/projects' },
-  { label: 'User Management', icon: Users, path: '/user-management' },
-  { label: 'Einstellungen', icon: Settings, path: '/settings' }
+  { label: 'Dashboard', icon: BarChart3, path: '/dashboard', permission: null }, // Dashboard ist immer verfügbar
+  { label: 'Projekte', icon: FolderOpen, path: '/projects', permission: 'ProjectManagement' },
+  { label: 'User Management', icon: Users, path: '/user-management', permission: 'UserManagement' },
+  { label: 'Einstellungen', icon: Settings, path: '/settings', permission: 'SystemConfiguration' }
 ]
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const { currentProject, availableProjects } = useProject()
+  const { hasPermission } = usePermissions()
   const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'recent'>('overview')
-  const [systemStatus, setSystemStatus] = useState({
-    backend: false,
-    database: false,
-    notifications: false,
-    userManagement: false
+
+  // Filter menu items based on permissions
+  const visibleMenuItems = mainMenu.filter(item => {
+    if (item.permission === null) return true // Dashboard ist immer sichtbar
+    return hasPermission(item.permission)
   })
-
-  // Health checks
-  useEffect(() => {
-    const checkSystemHealth = async () => {
-      try {
-        // Check backend health
-        const backendResponse = await fetch('http://localhost:3002/api/health')
-        const backendData = await backendResponse.json()
-        
-
-        
-        // Check notifications service - use a simple health check
-        const notificationsResponse = await fetch('http://localhost:3002/api/health')
-        
-        setSystemStatus({
-          backend: backendResponse.ok,
-          database: backendResponse.ok, // If backend is healthy, DB is connected
-          notifications: notificationsResponse.ok,
-          userManagement: true // Assume working since we're logged in
-        })
-      } catch (error) {
-        console.error('Health check failed:', error)
-        setSystemStatus({
-          backend: false,
-          database: false,
-          notifications: false,
-          userManagement: false
-        })
-      }
-    }
-
-    checkSystemHealth()
-    const interval = setInterval(checkSystemHealth, 30000) // Check every 30 seconds
-    
-    return () => clearInterval(interval)
-  }, [])
 
   // Projekt-Statistiken für das aktive Projekt
   const stats = currentProject ? [
@@ -143,7 +107,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mainMenu.map((item) => {
+        {visibleMenuItems.map((item) => {
           const Icon = item.icon
           return (
             <div 
@@ -165,96 +129,9 @@ export const Dashboard: React.FC = () => {
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-black mb-4">Schnellaktionen</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button 
-            className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            onClick={() => navigate('/projects')}
-          >
-            <Target size={20} className="text-digital-blue" />
-            <span className="text-sm font-medium">Neues Projekt erstellen</span>
-          </button>
-          <button 
-            className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            onClick={() => navigate('/user-management')}
-          >
-            <Users size={20} className="text-digital-blue" />
-            <span className="text-sm font-medium">Benutzer verwalten</span>
-          </button>
-          <button 
-            className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            onClick={() => navigate('/settings')}
-          >
-            <Settings size={20} className="text-digital-blue" />
-            <span className="text-sm font-medium">Einstellungen</span>
-          </button>
-        </div>
-      </div>
 
-      {/* System Status */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-black mb-4">System Status</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            systemStatus.backend 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className={`w-3 h-3 rounded-full ${
-              systemStatus.backend ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-            <span className={`text-sm font-medium ${
-              systemStatus.backend ? 'text-green-800' : 'text-red-800'
-            }`}>
-              Backend API {systemStatus.backend ? 'Online' : 'Offline'}
-            </span>
-          </div>
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            systemStatus.database 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className={`w-3 h-3 rounded-full ${
-              systemStatus.database ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-            <span className={`text-sm font-medium ${
-              systemStatus.database ? 'text-green-800' : 'text-red-800'
-            }`}>
-              Datenbank {systemStatus.database ? 'Verbunden' : 'Getrennt'}
-            </span>
-          </div>
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            systemStatus.notifications 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-blue-50 border-blue-200'
-          }`}>
-            <div className={`w-3 h-3 rounded-full ${
-              systemStatus.notifications ? 'bg-green-500' : 'bg-blue-500'
-            }`}></div>
-            <span className={`text-sm font-medium ${
-              systemStatus.notifications ? 'text-green-800' : 'text-blue-800'
-            }`}>
-              Notification Service {systemStatus.notifications ? 'Online' : 'Initializing'}
-            </span>
-          </div>
-          <div className={`flex items-center gap-3 p-4 rounded-lg border ${
-            systemStatus.userManagement 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className={`w-3 h-3 rounded-full ${
-              systemStatus.userManagement ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-            <span className={`text-sm font-medium ${
-              systemStatus.userManagement ? 'text-green-800' : 'text-red-800'
-            }`}>
-              User Management {systemStatus.userManagement ? 'Online' : 'Offline'}
-            </span>
-          </div>
-        </div>
-      </div>
+
+
     </div>
   )
 } 

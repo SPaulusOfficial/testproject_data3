@@ -6,6 +6,7 @@ import { PermissionGuard } from '../components/PermissionGuard';
 import { UserList } from '../components/UserManagement/UserList';
 import { UserForm } from '../components/UserManagement/UserForm';
 import UserPermissionManager from '../components/UserManagement/UserPermissionManager';
+import { AdminPasswordSet } from '../components/UserManagement/AdminPasswordSet';
 import { User } from '../types/User';
 
 const UserManagement: React.FC = () => {
@@ -15,6 +16,7 @@ const UserManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'permissions'>('users');
   const [view, setView] = useState<'list' | 'edit' | 'view' | 'create'>('list');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showPasswordSet, setShowPasswordSet] = useState(false);
 
   // Check permissions
   const canAccessUserManagement = hasPermission('UserManagement');
@@ -37,6 +39,21 @@ const UserManagement: React.FC = () => {
 
   const handleCreateUser = () => {
     setView('create');
+    setSelectedUser(null);
+  };
+
+  const handleSetPassword = (user: User) => {
+    setSelectedUser(user);
+    setShowPasswordSet(true);
+  };
+
+  const handlePasswordSetSuccess = () => {
+    setShowPasswordSet(false);
+    setSelectedUser(null);
+  };
+
+  const handlePasswordSetCancel = () => {
+    setShowPasswordSet(false);
     setSelectedUser(null);
   };
 
@@ -181,9 +198,21 @@ const UserManagement: React.FC = () => {
               onEditUser={handleEditUser} 
               onViewUser={handleViewUser} 
               onCreateUser={handleCreateUser}
+              onSetPassword={handleSetPassword}
             />
           </PermissionGuard>
         </div>
+      )}
+
+      {/* Admin Password Set Modal */}
+      {showPasswordSet && selectedUser && (
+        <AdminPasswordSet
+          userId={selectedUser.id}
+          userEmail={selectedUser.email}
+          userName={`${selectedUser.profile?.firstName || ''} ${selectedUser.profile?.lastName || ''}`.trim() || selectedUser.username}
+          onSuccess={handlePasswordSetSuccess}
+          onCancel={handlePasswordSetCancel}
+        />
       )}
 
       {/* {activeTab === 'permissions' && canManageUserPermissions && (

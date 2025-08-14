@@ -15,6 +15,7 @@ SystemSettings
 SystemConfiguration
 SystemMonitoring
 SystemLogs
+SystemStatus
 Notifications
 NotificationSettings
 NotificationTemplates
@@ -45,6 +46,7 @@ WorkshopManagement
 ProjectManagement
 ProjectCreation
 ProjectMembers
+SystemStatus
 Notifications
 NotificationSettings
 KnowledgeBase

@@ -19,8 +19,12 @@ CREATE TABLE IF NOT EXISTS users (
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   avatar_url VARCHAR(500),
+  avatar_data BYTEA,
+  avatar_mime_type VARCHAR(50),
+  avatar_storage_type VARCHAR(20) DEFAULT 'url' CHECK (avatar_storage_type IN ('url', 'database', 'none')),
+  avatar_size INTEGER,
   phone VARCHAR(20),
-  global_role VARCHAR(20) DEFAULT 'user' CHECK (global_role IN ('admin', 'user', 'guest')),
+  global_role VARCHAR(20) DEFAULT 'user' CHECK (global_role IN ('system_admin', 'project_admin', 'user', 'guest')),
   two_factor_enabled BOOLEAN DEFAULT FALSE,
   two_factor_secret VARCHAR(32),
   failed_login_attempts INTEGER DEFAULT 0,
@@ -200,11 +204,11 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS project_access_policy ON projects;
 CREATE POLICY project_access_policy ON projects
   FOR ALL USING (
-    -- Admin can access all projects
+    -- System Admin can access all projects
     EXISTS (
       SELECT 1 FROM users 
       WHERE users.id = current_setting('app.current_user_id')::UUID 
-      AND users.global_role = 'admin'
+      AND users.global_role = 'system_admin'
     )
     OR
     -- User can access projects they're members of
@@ -219,11 +223,11 @@ CREATE POLICY project_access_policy ON projects
 DROP POLICY IF EXISTS membership_access_policy ON project_memberships;
 CREATE POLICY membership_access_policy ON project_memberships
   FOR ALL USING (
-    -- Admin can see all memberships
+    -- System Admin can see all memberships
     EXISTS (
       SELECT 1 FROM users 
       WHERE users.id = current_setting('app.current_user_id')::UUID 
-      AND users.global_role = 'admin'
+      AND users.global_role = 'system_admin'
     )
     OR
     -- Users can see their own memberships
@@ -242,11 +246,11 @@ CREATE POLICY membership_access_policy ON project_memberships
 DROP POLICY IF EXISTS project_data_access_policy ON project_data;
 CREATE POLICY project_data_access_policy ON project_data
   FOR ALL USING (
-    -- Admin can access all data
+    -- System Admin can access all data
     EXISTS (
       SELECT 1 FROM users 
       WHERE users.id = current_setting('app.current_user_id')::UUID 
-      AND users.global_role = 'admin'
+      AND users.global_role = 'system_admin'
     )
     OR
     -- Users can access data in projects they're members of
@@ -261,11 +265,11 @@ CREATE POLICY project_data_access_policy ON project_data
 DROP POLICY IF EXISTS audit_logs_access_policy ON audit_logs;
 CREATE POLICY audit_logs_access_policy ON audit_logs
   FOR ALL USING (
-    -- Admin can see all logs
+    -- System Admin can see all logs
     EXISTS (
       SELECT 1 FROM users 
       WHERE users.id = current_setting('app.current_user_id')::UUID 
-      AND users.global_role = 'admin'
+      AND users.global_role = 'system_admin'
     )
     OR
     -- Users can see their own logs
@@ -339,7 +343,7 @@ $$ LANGUAGE plpgsql;
 -- INITIAL DATA (Optional)
 -- =====================================================
 
--- Insert default admin user (password: 'admin123')
+-- Insert default system admin user (password: 'admin123')
 INSERT INTO users (
   email, username, password_hash, first_name, last_name, 
   global_role, is_active
@@ -349,7 +353,7 @@ INSERT INTO users (
   '$2b$10$AcLI1.7X8vc8AWmbTo0JL.DvxPFuT4F9CR2nnFD/2LUBWeldC48mq',
   'Admin', 
   'User', 
-  'admin', 
+  'system_admin', 
   true
 ) ON CONFLICT (email) DO NOTHING;
 

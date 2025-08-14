@@ -1181,7 +1181,7 @@ app.post('/api/permissions/check', authenticateToken, async (req, res) => {
 // Helper function to check user permissions
 function checkUserPermission(user, resource, action, scope) {
   // Check global role permissions
-  if (user.global_role === 'admin') {
+  if (user.global_role === 'system_admin' || user.global_role === 'project_admin') {
     return true; // Admin has all permissions
   }
   

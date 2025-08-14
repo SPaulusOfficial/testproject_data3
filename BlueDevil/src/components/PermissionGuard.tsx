@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PermissionGuardProps {
   permission: string;
@@ -72,6 +73,32 @@ export const AdminGuard: React.FC<{ children: React.ReactNode; fallback?: React.
   const { isAdmin } = usePermissions();
   
   if (!isAdmin) {
+    return <>{fallback}</>;
+  }
+  
+  return <>{children}</>;
+};
+
+export const SystemAdminGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: System Admin privileges required</div> 
+}) => {
+  const { user } = useAuth();
+  
+  if (user?.role !== 'system_admin') {
+    return <>{fallback}</>;
+  }
+  
+  return <>{children}</>;
+};
+
+export const ProjectAdminGuard: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode }> = ({ 
+  children, 
+  fallback = <div className="p-4 text-gray-500">Access denied: Project Admin privileges required</div> 
+}) => {
+  const { user } = useAuth();
+  
+  if (user?.role !== 'project_admin') {
     return <>{fallback}</>;
   }
   

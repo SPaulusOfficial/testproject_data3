@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useProject } from '@/contexts/ProjectContext'
+import Avatar from './Avatar'
 import { 
   ChevronDown,
   ChevronRight,
@@ -164,10 +165,10 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
                 <span className="text-white text-lg font-bold tracking-wide">Salesfive</span>
               </div>
               {/* Avatar */}
-              <img
-                src={user.avatar || '/avatar.png'}
-                alt={user.name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow mb-2"
+              <Avatar 
+                user={user} 
+                size="xl" 
+                className="border-4 border-white shadow mb-2"
               />
               <div className="text-white text-base font-semibold">{user.name}</div>
               <div className="text-white/70 text-xs truncate">{user.email}</div>

@@ -3,6 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { User as UserIcon, Mail, Phone, Key, Shield, Settings, Edit, Check, X } from 'lucide-react';
 import userService from '../services/UserService';
 import { User } from '../types/User';
+import { ProfilePasswordChange } from '../components/ProfilePasswordChange';
+import { AvatarUpload } from '../components/AvatarUpload';
+import Avatar from '../components/Avatar';
 
 const UserProfilePage: React.FC = () => {
   const { user } = useAuth();
@@ -166,13 +169,9 @@ const UserProfilePage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-            {currentUser.profile?.avatar ? (
-              <img src={currentUser.profile.avatar} alt="Avatar" className="w-12 h-12 rounded-full" />
-            ) : (
-              <UserIcon className="w-6 h-6 text-blue-600" />
-            )}
-          </div>
+          {user && (
+            <Avatar user={user} size="lg" className="border-2 border-gray-200" />
+          )}
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
               {currentUser.profile?.firstName && currentUser.profile?.lastName 
@@ -213,6 +212,29 @@ const UserProfilePage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Avatar Upload */}
+      <div className="bg-white rounded-lg shadow border">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">Profile Picture</h2>
+        </div>
+        <div className="p-6">
+          <AvatarUpload 
+            userId={currentUser.id}
+            currentAvatar={currentUser.profile?.avatar}
+            onAvatarUpdate={(newAvatar) => {
+              // Update local user state
+              setCurrentUser(prev => prev ? {
+                ...prev,
+                profile: {
+                  ...prev.profile,
+                  avatar: newAvatar
+                }
+              } : null);
+            }}
+          />
+        </div>
+      </div>
 
       {/* Profile Information */}
       <div className="bg-white rounded-lg shadow border">
@@ -434,6 +456,9 @@ const UserProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Password Change */}
+      <ProfilePasswordChange />
     </div>
   );
 };

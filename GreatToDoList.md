@@ -73,6 +73,106 @@
   - Add role-based permission inheritance
   - Implement permission precedence rules
   - Add bulk permission operations
+- [x] Make System Status section smaller and only visible to System Admins and Project Admins
+  - Added SystemStatus permission to permissions.def
+  - Updated permission sets to include SystemStatus for FullAdministrator and ProjectAdministrator
+  - Replaced large System Status section with compact version using small badges
+  - Added PermissionGuard to only show System Status to users with SystemStatus permission
+  - Reduced padding and font sizes for more compact display
+- [x] Create elegant System Status dropdown in header
+  - Created new SystemStatusDropdown component with clean, professional design
+  - Integrated dropdown into header for better accessibility and cleaner layout
+  - Added real-time status indicators with icons and colors
+  - Implemented auto-refresh every 30 seconds
+  - Added detailed status information in dropdown panel
+  - Removed old System Status section from Dashboard for cleaner interface
+  - Made component extensible for future status checks
+- [x] Implement comprehensive password management system
+  - Created domain whitelist system for secure email domains (domain-whitelist.def)
+  - Built PasswordService with bcrypt hashing, token generation, and validation
+  - Implemented email-based password reset (user-initiated) with secure tokens
+  - Added admin password set functionality with temporary password generation
+  - Created profile-based password change for users
+  - Built frontend components: PasswordResetRequest, PasswordReset, AdminPasswordSet, ProfilePasswordChange
+  - Added password strength validation with configurable requirements
+  - Integrated password reset link in login form
+  - Added password change section to user profile page
+  - Implemented admin password set modal in user management
+  - Added comprehensive API endpoints for all password operations
+  - Included security features: token expiration, domain validation, password requirements
+- [x] Add Chat permission control to ChatWidget
+  - Wrapped ChatWidget component with PermissionGuard for "Chat" permission
+  - Ensures only users with Chat permission can access the AI assistant
+  - Simple and clean implementation using existing permission system
+- [x] Add permission-based visibility to Dashboard menu buttons
+  - Added permission requirements to mainMenu items (ProjectManagement, UserManagement, SystemConfiguration)
+  - Implemented visibleMenuItems filter based on user permissions
+  - Dashboard remains always visible, other menu items show only with appropriate permissions
+  - Clean and consistent permission-based UI filtering
+- [x] Remove Quick Actions section from Dashboard
+  - Removed redundant Quick Actions buttons for cleaner interface
+  - Navigation Cards already provide the same functionality with better visual design
+- [x] Remove all Information Modals from the application
+  - Removed DashboardInfoButtons component and all references
+  - Removed PageInfoButton component and all references
+  - Simplified PageWithInfo wrapper to PageWithLayout
+  - Removed pageInfo prop from Layout component
+  - Deleted unused component files (DashboardInfoButtons.tsx, PageInfoButton.tsx)
+  - Cleaned up all routes to use simple Layout wrapper
+  - Removed all information modal functionality for cleaner interface
+- [x] Implement intelligent avatar storage system with automatic optimization
+  - Added avatar storage fields to database schema (avatar_data, avatar_mime_type, avatar_storage_type, avatar_size)
+  - Created AvatarService with intelligent storage decisions based on file size
+  - Implemented automatic image optimization using Sharp library
+  - Images automatically resized to 256x256 pixels for optimal performance
+  - Converted to WebP format for better compression (typically 30-70% size reduction)
+  - Small optimized images (≤100KB): Stored in database as BYTEA for fast access
+  - Medium optimized images (≤500KB): Stored as external files for optimal performance
+  - Large images (>500KB after optimization): Rejected with helpful error messages
+  - Increased maximum upload size to 5MB (will be optimized automatically)
+  - Added comprehensive API endpoints for avatar upload, retrieval, and deletion
+  - Created AvatarUpload React component with drag & drop, preview, and progress
+  - Integrated avatar upload into UserProfilePage
+  - Added automatic cleanup of old avatar files
+  - Implemented fallback avatar system for missing images
+  - Added storage statistics endpoint for administrators
+  - Added optimization statistics logging for monitoring
+  - Fixed authentication token consistency issues (authToken vs token)
+  - Fixed API proxy configuration for proper frontend-backend communication
+  - Resolved 403 Forbidden errors by unifying token storage approach
+  - Fixed file upload issues by using direct backend URL (localhost:3002) for FormData
+  - Enhanced CORS configuration to allow cross-origin requests from frontend ports
+  - Resolved "No avatar file provided" error by using direct backend connection
+  - Removed unnecessary proxy configuration from vite.config.ts
+  - Simplified AvatarUpload to use direct backend URL for file uploads
+  - Created Avatar component for displaying user avatars throughout the application
+  - Integrated Avatar component in Sidebar, Header, and UserProfilePage
+  - Fixed session persistence by extending JWT token expiration from 24h to 7d
+  - Updated AuthContext to use direct backend URL for token validation
+  - Enhanced Avatar component with detailed debugging logs to troubleshoot display issues
+  - Added comprehensive logging to track user ID and avatar loading process
+  - Fixed syntax error in Avatar component (missing catch/finally clause)
+  - Fixed Base64 decoding error in Avatar component by handling different data formats
+  - Enhanced avatar data handling to support both direct base64, data URL, and file URL formats
+  - Fixed avatar display in UserProfilePage by using correct user object
+  - Added static file serving for avatar images in backend server
+  - Fixed avatar display in UserProfilePage header by replacing static image with Avatar component
+  - Improved avatar quality: increased resolution to 512x512px and quality to 92%
+  - Enhanced avatar sizes: larger display sizes for better visibility
+  - Added professional color space optimization (sRGB, no chroma subsampling)
+  - Fixed brightness issues by preserving original color space
+  - Switched back to WebP format with better compression (85% quality)
+  - Removed redundant "Current Profile Picture" block from UserProfilePage
+  - Verified both frontend (port 3000) and backend (port 3002) are running correctly
+- [x] Update Global Roles from "admin" to "system_admin" and "project_admin"
+  - Updated database schema to support new global roles (system_admin, project_admin, user, guest)
+  - Updated User types and interfaces to use new role names
+  - Updated UserForm component to show new role options
+  - Updated AuthContext to support new role types
+  - Updated usePermissions hook to recognize both system_admin and project_admin as admin roles
+  - Updated database policies to use system_admin instead of admin
+  - Added SystemAdminGuard and ProjectAdminGuard components for specific role checks
+  - Updated default admin user to use system_admin role
 - [ ] Add permission analytics and reporting
   - Show permission usage statistics
   - Identify unused permissions

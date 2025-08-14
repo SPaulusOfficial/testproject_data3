@@ -8,7 +8,7 @@ export interface User {
     avatar?: string;
     phone?: string;
   };
-  globalRole: 'admin' | 'user' | 'guest';
+  globalRole: 'system_admin' | 'project_admin' | 'user' | 'guest';
   projectMemberships: ProjectMembership[];
   security: {
     passwordHash: string;
@@ -159,7 +159,7 @@ export interface UserCreateRequest {
   username: string;
   firstName: string;
   lastName: string;
-  globalRole: 'admin' | 'user' | 'guest';
+  globalRole: 'system_admin' | 'project_admin' | 'user' | 'guest';
   password: string;
   customData?: Record<string, any>;
 }
@@ -169,7 +169,7 @@ export interface UserUpdateRequest {
   username?: string;
   firstName?: string;
   lastName?: string;
-  globalRole?: 'admin' | 'user' | 'guest';
+  globalRole?: 'system_admin' | 'project_admin' | 'user' | 'guest';
   isActive?: boolean;
   customData?: Record<string, any>;
   settings?: Partial<User['settings']>;

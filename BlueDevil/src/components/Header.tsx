@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Menu, Search, LogOut } from 'lucide-react'
 import { NotificationBell } from './NotificationBell'
+import { SystemStatusDropdown } from './SystemStatusDropdown'
+import Avatar from './Avatar'
 
 interface HeaderProps {
   onMenuToggle: () => void
@@ -63,6 +65,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
             />
           </div>
 
+          {/* System Status */}
+          <SystemStatusDropdown />
+
           {/* Notifications */}
           <NotificationBell />
 
@@ -76,12 +81,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
               
               <button
                 onClick={() => navigate('/profile')}
-                className="w-8 h-8 bg-digital-blue rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors cursor-pointer"
+                className="hover:opacity-80 transition-opacity cursor-pointer"
                 title="View User Profile"
               >
-                <span className="text-white text-sm font-bold">
-                  {user.name.charAt(0)}
-                </span>
+                <Avatar user={user} size="sm" />
               </button>
               
               <button

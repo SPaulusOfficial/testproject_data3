@@ -10,9 +10,10 @@ interface UserListProps {
   onEditUser: (user: User) => void;
   onViewUser: (user: User) => void;
   onCreateUser: () => void;
+  onSetPassword: (user: User) => void;
 }
 
-export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser, onCreateUser }) => {
+export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser, onCreateUser, onSetPassword }) => {
   const { users, updateUser, toggleUserStatus, fetchUsers, isLoading, error } = useUserManagement();
   const { hasPermission } = usePermissions();
   const [showCustomDataModal, setShowCustomDataModal] = useState(false);
@@ -150,8 +151,10 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser, onCr
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    user.globalRole === 'admin' 
+                    user.globalRole === 'system_admin' 
                       ? 'bg-red-100 text-red-800'
+                      : user.globalRole === 'project_admin'
+                      ? 'bg-orange-100 text-orange-800'
                       : user.globalRole === 'user'
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-gray-100 text-gray-800'
@@ -223,6 +226,15 @@ export const UserList: React.FC<UserListProps> = ({ onEditUser, onViewUser, onCr
                         }`}
                       >
                         {user.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </PermissionGuard>
+                    
+                    <PermissionGuard permission="UserManagement">
+                      <button
+                        onClick={() => onSetPassword(user)}
+                        className="text-purple-600 hover:text-purple-900"
+                      >
+                        Set Password
                       </button>
                     </PermissionGuard>
                     

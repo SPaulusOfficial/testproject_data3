@@ -7,7 +7,7 @@ interface User {
   name: string
   email: string
   avatar?: string
-  role: 'admin' | 'user' | 'agent'
+  role: 'system_admin' | 'project_admin' | 'user' | 'agent'
   permissions?: Permission[]
 }
 
@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check if user is already authenticated
     const checkAuth = async () => {
       try {
-        const token = authService.getAuthToken();
+        const token = localStorage.getItem('authToken');
         if (token) {
           // Validate token with backend and get current user
           const response = await fetch('http://localhost:3002/api/debug/token', {
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: userData.userId || userData.id,
               name: userData.username || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
               email: userData.email,
-              role: (userData.globalRole || userData.role) as 'admin' | 'user' | 'agent',
+              role: (userData.globalRole || userData.role) as 'system_admin' | 'project_admin' | 'user' | 'agent',
               permissions: userData.permissions || []
             }
             
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(user);
           } else {
             // Token is invalid, clear it
-            authService.logout();
+            localStorage.removeItem('authToken');
             setUser(null);
           }
         } else {
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('Auth check failed:', error)
-        authService.logout()
+        localStorage.removeItem('authToken');
         setUser(null);
       } finally {
         setIsLoading(false)
