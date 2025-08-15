@@ -56,6 +56,12 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
 
         // Load available projects
         await refreshProjects();
+        
+        // If no current project is set but projects are available, auto-select the first one
+        if (!savedProject && availableProjects.length > 0) {
+          console.log('🔄 Auto-selecting first available project...');
+          await switchProject(availableProjects[0].id);
+        }
       } catch (error) {
         console.error('Failed to initialize project context:', error);
         setError('Failed to load projects');

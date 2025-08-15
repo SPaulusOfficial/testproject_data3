@@ -34,7 +34,7 @@ export const Dashboard: React.FC = () => {
   const stats = currentProject ? [
     {
       title: 'Projekt',
-      value: currentProject.name,
+      value: currentProject.name || 'Unnamed Project',
       icon: FolderOpen,
       color: 'digital-blue'
     },
@@ -60,26 +60,51 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Aktives Projekt Info-Banner */}
-      {currentProject && (
-        <div className="bg-gradient-to-r from-digital-blue to-deep-blue-2 rounded-2xl p-6 text-white flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-xs opacity-80 mb-1">Aktives Projekt</div>
-            <div className="text-2xl font-bold mb-1">{currentProject.name}</div>
-            <div className="text-sm opacity-80 mb-1">{currentProject.description || 'Keine Beschreibung'}</div>
-            <div className="flex gap-2 text-xs">
-              <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-white/80">
-                {currentProject.isActive ? 'Aktiv' : 'Inaktiv'}
-              </span>
-              <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-white/80">
-                {new Date(currentProject.createdAt).toLocaleDateString('de-DE')}
-              </span>
+      {/* Projekt-Kontext Banner */}
+      {currentProject ? (
+        <div className="bg-gradient-to-r from-digital-blue to-deep-blue-2 rounded-2xl p-6 text-white">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="text-xs opacity-80">Aktiver Projekt-Kontext</div>
+              </div>
+              <div className="text-2xl font-bold mb-1">{currentProject.name || 'Unnamed Project'}</div>
+              <div className="text-sm opacity-80 mb-3">{currentProject.description || 'Keine Beschreibung'}</div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-white/80">
+                  {currentProject.isActive ? 'Aktiv' : 'Inaktiv'}
+                </span>
+                <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-white/80">
+                  Erstellt: {new Date(currentProject.createdAt).toLocaleDateString('de-DE')}
+                </span>
+                <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-white/80">
+                  {availableProjects?.length || 0} Projekte verfügbar
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 md:mt-0 md:ml-6">
+              <div className="text-right">
+                <div className="text-xs opacity-80 mb-1">Projekt-Kontext geladen</div>
+                <div className="text-sm font-medium">Alle Agenten und Knowledge-Basen verwenden diesen Kontext</div>
+              </div>
             </div>
           </div>
-          <div className="mt-4 md:mt-0">
-            <label className="block text-xs mb-1 opacity-80">Verfügbare Projekte</label>
-            <div className="text-white text-sm">
-              {availableProjects?.length || 0} Projekte verfügbar
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+                <div className="text-xs opacity-80">Kein Projekt-Kontext</div>
+              </div>
+              <div className="text-xl font-bold mb-1">Projekt auswählen erforderlich</div>
+              <div className="text-sm opacity-80">Wählen Sie ein Projekt aus, um den Kontext für Agenten und Knowledge-Basen zu laden</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs opacity-80 mb-1">Verfügbare Projekte</div>
+              <div className="text-2xl font-bold">{availableProjects?.length || 0}</div>
             </div>
           </div>
         </div>

@@ -31,6 +31,12 @@ import DataModelingAssistDemo from '@/pages/solution/DataModelingAssistDemo';
 import ProcessMiningDemo from '@/pages/solution/ProcessMiningDemo';
 import SolutionDashboardDemo from '@/pages/solution/SolutionDashboardDemo';
 import DataModelSetup from '@/pages/build/DataModelSetup';
+import AgentVersioningDemo from '@/pages/AgentVersioningDemo';
+import ProcessVersioningDemo from '@/pages/ProcessVersioningDemo';
+import AdvancedDiffDemo from '@/pages/AdvancedDiffDemo';
+import VersionedTextEditorDemo from '@/pages/VersionedTextEditorDemo';
+import EditorExamplesDemo from '@/pages/EditorExamplesDemo';
+import EditorExamplesFullDemo from '@/pages/EditorExamplesFullDemo';
 
 import { NotificationDemoPage } from '@/pages/NotificationDemo'
 import UserProfilePage from '@/pages/UserProfilePage'
@@ -172,6 +178,37 @@ function App() {
             <Route path="/build/data-model-setup" element={
               <PageWithLayout>
                 <DataModelSetup />
+              </PageWithLayout>
+            } />
+            {/* Demo Routes */}
+            <Route path="/demo/versioned-text-editor" element={
+              <PageWithLayout>
+                <VersionedTextEditorDemo />
+              </PageWithLayout>
+            } />
+            <Route path="/demo/agent-versioning" element={
+              <PageWithLayout>
+                <AgentVersioningDemo />
+              </PageWithLayout>
+            } />
+            <Route path="/demo/process-versioning" element={
+              <PageWithLayout>
+                <ProcessVersioningDemo />
+              </PageWithLayout>
+            } />
+            <Route path="/demo/advanced-diff" element={
+              <PageWithLayout>
+                <AdvancedDiffDemo />
+              </PageWithLayout>
+            } />
+            <Route path="/demo/editor-examples" element={
+              <PageWithLayout>
+                <EditorExamplesDemo />
+              </PageWithLayout>
+            } />
+            <Route path="/demo/editor-examples-full" element={
+              <PageWithLayout>
+                <EditorExamplesFullDemo />
               </PageWithLayout>
             } />
             {/* Notification Demo */}

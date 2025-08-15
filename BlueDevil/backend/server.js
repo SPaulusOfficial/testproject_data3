@@ -1387,6 +1387,106 @@ app.post('/api/projects/:id/members', authenticateToken, requirePermission('Proj
   }
 });
 
+// Switch to project
+app.post('/api/projects/:id/switch', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+    
+    console.log(`🔄 Switching to project ${id} for user ${currentUser.userId}...`);
+    debugApi(`Switching to project ${id}`, { userId: currentUser.userId });
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    try {
+      // Verify user has access to this project
+      const membership = await client.query(`
+        SELECT pm.*, p.name as project_name, p.description as project_description
+        FROM project_memberships pm
+        JOIN projects p ON p.id = pm.project_id
+        WHERE pm.user_id = $1 AND pm.project_id = $2
+      `, [currentUser.userId, id]);
+
+      if (membership.rows.length === 0) {
+        return res.status(403).json({ error: 'Access denied to project' });
+      }
+
+      // Update last accessed timestamp
+      await client.query(`
+        UPDATE project_memberships 
+        SET last_accessed = NOW() 
+        WHERE user_id = $1 AND project_id = $2
+      `, [currentUser.userId, id]);
+
+      // Get project details
+      const project = await client.query(`
+        SELECT 
+          p.*,
+          u.username as owner_name,
+          u.email as owner_email
+        FROM projects p
+        LEFT JOIN users u ON u.id = p.owner_id
+        WHERE p.id = $1
+      `, [id]);
+
+      if (project.rows.length === 0) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const projectData = project.rows[0];
+      const membershipData = membership.rows[0];
+
+      // Log project switch
+      await client.query(`
+        INSERT INTO audit_logs (user_id, project_id, action, details, severity, category)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        currentUser.userId,
+        id,
+        'project_switched',
+        JSON.stringify({ projectName: projectData.name }),
+        'info',
+        'project_management'
+      ]);
+
+      console.log(`✅ Successfully switched to project ${id}`);
+      
+      res.json({
+        success: true,
+        project: {
+          id: projectData.id,
+          name: projectData.name,
+          slug: projectData.slug,
+          description: projectData.description,
+          ownerId: projectData.owner_id,
+          ownerName: projectData.owner_name,
+          settings: projectData.settings || {},
+          metadata: projectData.metadata || {},
+          environmentConfig: projectData.environment_config || {},
+          createdAt: projectData.created_at,
+          updatedAt: projectData.updated_at,
+          isActive: projectData.is_active
+        },
+        membership: {
+          id: membershipData.id,
+          role: membershipData.role,
+          permissions: membershipData.permissions,
+          lastAccessed: membershipData.last_accessed,
+          joinedAt: membershipData.created_at
+        }
+      });
+
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logError(error, `SWITCH_PROJECT_${req.params.id}`);
+    console.error('Error switching project:', error);
+    res.status(500).json({ error: 'Failed to switch project' });
+  }
+});
+
 // Remove member from project
 app.delete('/api/projects/:id/members/:userId', authenticateToken, requirePermission('ProjectManagement'), async (req, res) => {
   try {

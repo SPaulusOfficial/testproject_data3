@@ -47,9 +47,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           
           <div>
             <h1 className="text-h3 font-bold text-black">{pageTitle}</h1>
-            <p className="text-caption text-gray-600">
-              Project Assistant Suite - AI-powered Salesforce Platform
-            </p>
           </div>
         </div>
 

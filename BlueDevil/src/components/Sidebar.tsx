@@ -30,7 +30,8 @@ import {
   FileCode,
   ChevronDown as ChevronDownIcon,
   LogOut,
-  GitBranch
+  GitBranch,
+  Check
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -49,8 +50,9 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
   const { canAccessUserManagement, canAccessProjectManagement, canAccessSystemSettings } = usePermissions()
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
   const [openSub, setOpenSub] = useState<string | null>(null)
-  const { currentProject, availableProjects } = useProject()
+  const { currentProject, availableProjects, switchProject, isLoading } = useProject()
   const [showProjectModal, setShowProjectModal] = useState(false)
+  const [projectSearchTerm, setProjectSearchTerm] = useState('')
   const { logout } = useAuth()
 
   // Define menu items inside the component to access permissions
@@ -134,6 +136,43 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
           path: '/build/data-model-setup',
         }
       ]
+    },
+    {
+      label: 'Demo',
+      icon: Code,
+      type: 'accordion',
+      children: [
+        {
+          label: 'Versioned Text Editor',
+          icon: FileCode,
+          path: '/demo/versioned-text-editor',
+        },
+        {
+          label: 'Editor Examples',
+          icon: FileText,
+          path: '/demo/editor-examples',
+        },
+        {
+          label: 'Editor Examples (Full)',
+          icon: FileCode,
+          path: '/demo/editor-examples-full',
+        },
+        {
+          label: 'Agent Versioning',
+          icon: GitBranch,
+          path: '/demo/agent-versioning',
+        },
+        {
+          label: 'Process Versioning',
+          icon: Check,
+          path: '/demo/process-versioning',
+        },
+        {
+          label: 'Advanced Diff',
+          icon: FileText,
+          path: '/demo/advanced-diff',
+        }
+      ]
     }
   ]
 
@@ -142,7 +181,24 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
 
   // Abbreviation for project names (first letters)
   const getProjectShortName = (name: string) => {
+    if (!name) return 'U';
     return name.split(' ').map(word => word[0]).join('').substring(0, 3)
+  }
+
+  // Filter projects based on search term
+  const filteredProjects = availableProjects.filter(project =>
+    (project.projectName && project.projectName.toLowerCase().includes(projectSearchTerm.toLowerCase())) ||
+    (project.projectDescription && project.projectDescription.toLowerCase().includes(projectSearchTerm.toLowerCase()))
+  )
+
+  const handleProjectSwitch = async (projectId: string) => {
+    try {
+      await switchProject(projectId);
+      setShowProjectModal(false);
+      setProjectSearchTerm('');
+    } catch (error) {
+      console.error('Failed to switch project:', error);
+    }
   }
 
   return (
@@ -185,9 +241,9 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
               >
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-xs font-bold">
-                    {getProjectShortName(currentProject.name)}
+                    {getProjectShortName(currentProject.name || 'Unknown')}
                   </div>
-                  <span className="truncate text-xs">{currentProject.name}</span>
+                  <span className="truncate text-xs">{currentProject.name || 'Unknown Project'}</span>
                 </div>
                 <ChevronDownIcon size={16} />
               </button>
@@ -298,28 +354,41 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-96 max-w-[90vw]">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-black">Select Project</h3>
+              <h3 className="text-base font-semibold text-black">Select Project</h3>
               <button
-                onClick={() => setShowProjectModal(false)}
+                onClick={() => {
+                  setShowProjectModal(false);
+                  setProjectSearchTerm('');
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
               </button>
             </div>
+            
+            {/* Search Field */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={projectSearchTerm}
+                onChange={(e) => setProjectSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {availableProjects.map(project => (
+              {filteredProjects.map(project => (
                 <button
                   key={project.id}
-                  onClick={() => {
-                    // Note: setActiveProjectId is not available in useProject hook
-                    // This would need to be implemented in the ProjectContext
-                    setShowProjectModal(false)
-                  }}
+                  onClick={() => handleProjectSwitch(project.projectId)}
+                  disabled={isLoading}
                   className={`w-full text-left p-3 rounded-lg border transition-colors ${
                     project.projectId === currentProject?.id
                       ? 'border-digital-blue bg-digital-blue/10 text-digital-blue'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -327,15 +396,36 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
                         ? 'bg-digital-blue text-white'
                         : 'bg-gray-200 text-gray-600'
                     }`}>
-                      {getProjectShortName(project.projectName)}
+                      {getProjectShortName(project.projectName || 'Unknown')}
                     </div>
-                    <div>
-                      <div className="font-semibold text-black">{project.projectName}</div>
-                      <div className="text-sm text-gray-600">{project.projectDescription || 'No description'}</div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-black flex items-center justify-between text-sm">
+                        {project.projectName || 'Unknown Project'}
+                        {project.projectId === currentProject?.id && (
+                          <Check className="w-4 h-4 text-digital-blue" />
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-600">{project.projectDescription || 'No description'}</div>
                     </div>
                   </div>
                 </button>
               ))}
+              
+              {filteredProjects.length === 0 && (
+                <div className="px-3 py-4 text-center text-gray-500">
+                  {projectSearchTerm ? (
+                    <>
+                      <p className="text-sm">No projects found for "{projectSearchTerm}"</p>
+                      <p className="text-xs mt-1">Try a different search term</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm">No projects available</p>
+                      <p className="text-xs mt-1">Contact your administrator to get access to projects</p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

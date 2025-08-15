@@ -20,6 +20,8 @@ interface SessionContextType {
   getCurrentProject: () => Project | null;
   setAvailableProjects: (projects: Project[]) => void;
   getAvailableProjects: () => Project[];
+  switchProject: (projectId: string) => Promise<void>;
+  refreshAvailableProjects: () => Promise<void>;
   
   // UI State Management
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -154,6 +156,39 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
 
   const getAvailableProjects = () => sessionService.getAvailableProjects();
 
+  const switchProject = async (projectId: string) => {
+    try {
+      // Call project service to switch project
+      const projectService = (await import('../services/ProjectService')).default;
+      const result = await projectService.switchProject(projectId);
+      
+      // Update session with new project
+      sessionService.setCurrentProject(result.project);
+      setSessionState(sessionService.getSession());
+      
+      // Refresh available projects
+      await refreshAvailableProjects();
+    } catch (error) {
+      console.error('Failed to switch project:', error);
+      throw error;
+    }
+  };
+
+  const refreshAvailableProjects = async () => {
+    try {
+      // Call project service to get updated projects
+      const projectService = (await import('../services/ProjectService')).default;
+      const projects = await projectService.getAllProjects();
+      
+      // Update session with new projects
+      sessionService.setAvailableProjects(projects);
+      setSessionState(sessionService.getSession());
+    } catch (error) {
+      console.error('Failed to refresh projects:', error);
+      throw error;
+    }
+  };
+
   const setSidebarCollapsed = (collapsed: boolean) => {
     sessionService.setSidebarCollapsed(collapsed);
     setSessionState(sessionService.getSession());
@@ -285,6 +320,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     getCurrentProject,
     setAvailableProjects,
     getAvailableProjects,
+    switchProject,
+    refreshAvailableProjects,
     
     // UI State Management
     setSidebarCollapsed,

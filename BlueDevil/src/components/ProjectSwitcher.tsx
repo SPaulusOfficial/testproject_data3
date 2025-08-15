@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Search } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -25,6 +25,7 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [switchingProject, setSwitchingProject] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleProjectSwitch = async (projectId: string) => {
     if (switchingProject || isLoading) return;
@@ -69,6 +70,12 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
     }
   };
 
+  // Filter projects based on search term
+  const filteredProjects = availableProjects.filter(project =>
+    (project.name && project.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   if (availableProjects.length === 0) {
     return (
       <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
@@ -90,7 +97,7 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
         <div className={`w-3 h-3 rounded-full ${
           currentProject ? 'bg-green-500' : 'bg-gray-400'
         }`}></div>
-        <span className="font-medium text-gray-900">
+        <span className="font-medium text-gray-900 text-sm">
           {currentProject?.name || 'Select Project'}
         </span>
                         <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${
@@ -106,9 +113,22 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
           <div className="p-2">
+            {/* Search Field */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            
             <div className="text-sm font-medium text-gray-700 mb-2 px-2">Your Projects</div>
             
-            {availableProjects.map((project) => (
+            {filteredProjects.map((project) => (
               <button
                 key={project.id}
                 onClick={() => handleProjectSwitch(project.id)}
@@ -119,7 +139,7 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
               >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">{project.name}</span>
+                    <span className="font-medium text-gray-900">{project.name || 'Unnamed Project'}</span>
                     {currentProject?.id === project.id && (
                       <Check className="w-4 h-4 text-blue-600" />
                     )}
@@ -141,11 +161,20 @@ const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({
               </button>
             ))}
             
-            {availableProjects.length === 0 && (
-              <div className="px-3 py-4 text-center text-gray-500">
-                <p>No projects available</p>
-                <p className="text-xs mt-1">Contact your administrator to get access to projects</p>
-              </div>
+            {filteredProjects.length === 0 && (
+                              <div className="px-3 py-4 text-center text-gray-500">
+                  {searchTerm ? (
+                    <>
+                      <p>No projects found for "{searchTerm}"</p>
+                      <p className="text-xs mt-1">Try a different search term</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>No projects available</p>
+                      <p className="text-xs mt-1">Contact your administrator to get access to projects</p>
+                    </>
+                  )}
+                </div>
             )}
           </div>
         </div>
