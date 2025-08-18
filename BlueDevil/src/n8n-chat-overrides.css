@@ -1,0 +1,102 @@
+/* Hide only external n8n chat toggle buttons (not the ones inside our wrapper) */
+.n8n-chat-toggle:not(.n8n-chat .n8n-chat-toggle),
+[data-testid="chat-toggle"]:not(.n8n-chat [data-testid="chat-toggle"]),
+.n8n-chat-toggle-button:not(.n8n-chat .n8n-chat-toggle-button),
+.n8n-chat-button:not(.n8n-chat .n8n-chat-button),
+.n8n-chat-fab:not(.n8n-chat .n8n-chat-fab),
+.n8n-chat-float:not(.n8n-chat .n8n-chat-float),
+.n8n-chat-launcher:not(.n8n-chat .n8n-chat-launcher),
+.n8n-chat-trigger:not(.n8n-chat .n8n-chat-trigger),
+.n8n-chat-open-button:not(.n8n-chat .n8n-chat-open-button),
+.n8n-chat-close-button:not(.n8n-chat .n8n-chat-close-button),
+.n8n-chat-minimize-button:not(.n8n-chat .n8n-chat-minimize-button),
+.n8n-chat-maximize-button:not(.n8n-chat .n8n-chat-maximize-button) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide n8n chat header since we have our own */
+.n8n-chat-header,
+.n8n-chat-window-header,
+.n8n-chat-title,
+.n8n-chat-subtitle,
+.n8n-chat .n8n-chat-header,
+.n8n-chat .n8n-chat-window-header,
+.n8n-chat .n8n-chat-title,
+.n8n-chat .n8n-chat-subtitle,
+.n8n-chat [class*="header"],
+.n8n-chat [class*="title"],
+.n8n-chat [class*="subtitle"],
+.n8n-chat header,
+.n8n-chat .header,
+.n8n-chat .title,
+.n8n-chat .subtitle {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Remove borders and shadows from n8n chat window */
+.n8n-chat-window,
+.n8n-chat-container {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Ensure chat takes full container space */
+.n8n-chat,
+.n8n-chat-window,
+.n8n-chat-container {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  position: relative !important;
+}
+
+/* Hide any floating elements */
+.n8n-chat-floating,
+.n8n-chat-overlay,
+.n8n-chat-modal {
+  display: none !important;
+}
+
+/* Ensure chat content is visible */
+.n8n-chat-content,
+.n8n-chat-messages,
+.n8n-chat-input,
+.n8n-chat-message,
+.n8n-chat-message-list,
+.n8n-chat-input-container,
+.n8n-chat-textarea,
+.n8n-chat-send-button {
+  height: auto !important;
+  overflow: visible !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Make sure the chat window itself is visible */
+.n8n-chat-window {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Hide any fixed positioned elements */
+.n8n-chat[style*="position: fixed"],
+.n8n-chat[style*="position:fixed"] {
+  position: relative !important;
+}
+
+/* Hide any z-index elements that might overlay */
+.n8n-chat[style*="z-index"] {
+  z-index: auto !important;
+}

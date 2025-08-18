@@ -8,6 +8,7 @@ const projectService = require('./projectService');
 const notificationService = require('./notificationService');
 const permissionService = require('./permissionService');
 const { requirePermission, requireAnyPermission, requireAllPermissions, getUserPermissions } = require('./permissionMiddleware');
+const n8nProxy = require('./n8nProxy');
 require('dotenv').config({ path: __dirname + '/../.env' });
 
 // Debug logging setup
@@ -224,6 +225,9 @@ app.use(fileUpload({
 
 // Serve static files (avatars)
 app.use('/avatars', express.static(path.join(__dirname, '../public/avatars')));
+
+// n8n Chat Proxy
+app.use(n8nProxy);
 
 // Enhanced request logging middleware
 app.use((req, res, next) => {

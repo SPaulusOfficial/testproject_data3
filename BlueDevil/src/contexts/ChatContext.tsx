@@ -23,6 +23,7 @@ interface ChatContextType {
     action?: string
   }
   sendMessage: (text: string) => Promise<void>
+  sendN8nMessage: (userText: string, assistantText: string) => void
   toggleChat: () => void
   clearMessages: () => void
 }
@@ -197,12 +198,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setMessages([])
   }
 
+  const sendN8nMessage = (userText: string, assistantText: string) => {
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: userText,
+      sender: 'user',
+      timestamp: new Date(),
+      context: currentContext
+    }
+    
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: assistantText,
+      sender: 'assistant',
+      timestamp: new Date(),
+      context: currentContext
+    }
+    
+    setMessages(prev => [...prev, userMessage, assistantMessage])
+  }
+
   const value: ChatContextType = {
     messages,
     isOpen,
     isLoading,
     currentContext,
     sendMessage,
+    sendN8nMessage,
     toggleChat,
     clearMessages
   }

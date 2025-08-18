@@ -1,0 +1,68 @@
+{
+  "name": "Chat Test Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "632ee028-b763-48bf-b1d8-1b002d98325e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple echo response\nconst message = $input.first().json.message || 'No message received';\n\nreturn {\n  json: {\n    response: `Echo: ${message}`,\n    timestamp: new Date().toISOString(),\n    workflow: 'Chat Test Workflow'\n  }\n};"
+      },
+      "id": "function",
+      "name": "Echo Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Echo Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Echo Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
