@@ -76,6 +76,7 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
       icon: Layers,
       type: 'accordion',
       children: [
+        { label: 'Knowledge Base', path: '/knowledge', icon: FileText },
         { label: 'Workshops', path: '/pre-sales/knowledge/workshops', icon: Book },
       ]
     },

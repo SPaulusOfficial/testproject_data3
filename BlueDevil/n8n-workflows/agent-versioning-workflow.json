@@ -1,0 +1,174 @@
+{
+  "name": "Agent Versioning Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-test/agent-output",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-receiver",
+      "name": "Agent Output Receiver",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "agent-output-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Load previous version from database\nconst input = $input.first();\nconsole.log('=== DEBUG START ===');\nconsole.log('Raw input:', JSON.stringify(input, null, 2));\nconsole.log('input.body:', JSON.stringify(input?.body, null, 2));\nconsole.log('input.json:', JSON.stringify(input?.json, null, 2));\nconsole.log('input.data:', JSON.stringify(input?.data, null, 2));\nconsole.log('input.params:', JSON.stringify(input?.params, null, 2));\nconsole.log('input.query:', JSON.stringify(input?.query, null, 2));\nconsole.log('input.headers:', JSON.stringify(input?.headers, null, 2));\nconsole.log('input.webhookUrl:', JSON.stringify(input?.webhookUrl, null, 2));\nconsole.log('input.executionMode:', JSON.stringify(input?.executionMode, null, 2));\n\n// Try all possible locations for webhook data\nlet webhookData = null;\n\n// Check if body is nested\nif (input?.body?.body) {\n  webhookData = input.body.body;\n  console.log('Found data in body.body');\n} else if (input?.body) {\n  webhookData = input.body;\n  console.log('Found data in body');\n} else if (input?.json?.body) {\n  webhookData = input.json.body;\n  console.log('Found data in json.body');\n} else if (input?.json) {\n  webhookData = input.json;\n  console.log('Found data in json');\n} else if (input?.data) {\n  webhookData = input.data;\n  console.log('Found data in data');\n} else if (input?.params) {\n  webhookData = input.params;\n  console.log('Found data in params');\n} else {\n  console.log('No data found in any location');\n  console.log('Available keys:', Object.keys(input || {}));\n  throw new Error('No webhook data found in any location');\n}\n\nconsole.log('Extracted webhook data:', JSON.stringify(webhookData, null, 2));\n\nconst { documentId, agentVersion, content } = webhookData;\n\n// Validate required fields\nif (!documentId || !agentVersion || !content) {\n  throw new Error(`Missing required fields. Received: documentId=${documentId}, agentVersion=${agentVersion}, content=${content}`);\n}\n\n// Simulate loading previous version\nconst previousVersion = {\n  documentId,\n  agentVersion: 'v1.2',\n  content: 'Der Kunde sendet eine Bestellung über das Web-Formular. Das System validiert die Eingaben automatisch.'\n};\n\nconsole.log('=== DEBUG END ===');\n\nreturn [\n  {\n    json: {\n      documentId,\n      currentVersion: {\n        agentVersion,\n        content: content.toString()\n      },\n      previousVersion,\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "load-previous-version",
+      "name": "Load Previous Version",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate text diff between versions\nconsole.log('=== GENERATE DIFF START ===');\nconst input = $input.first();\nconsole.log('Diff input:', JSON.stringify(input, null, 2));\n\nif (!input || !input.json) {\n  throw new Error('No input data received for diff generation');\n}\n\nconst { currentVersion, previousVersion } = input.json;\nconsole.log('currentVersion:', JSON.stringify(currentVersion, null, 2));\nconsole.log('previousVersion:', JSON.stringify(previousVersion, null, 2));\n\n// Validate required fields\nif (!currentVersion || !currentVersion.content || !previousVersion || !previousVersion.content) {\n  throw new Error(`Missing version data. currentVersion: ${JSON.stringify(currentVersion)}, previousVersion: ${JSON.stringify(previousVersion)}`);\n}\n\nconst currentLines = currentVersion.content.toString().split('\\n');\nconst previousLines = previousVersion.content.toString().split('\\n');\n\nconst changes = [];\nconst maxLines = Math.max(currentLines.length, previousLines.length);\n\nfor (let i = 0; i < maxLines; i++) {\n  const currentLine = currentLines[i] || '';\n  const previousLine = previousLines[i] || '';\n  \n  if (currentLine !== previousLine) {\n    if (currentLine && !previousLine) {\n      changes.push({\n        type: 'addition',\n        line: i + 1,\n        content: currentLine\n      });\n    } else if (!currentLine && previousLine) {\n      changes.push({\n        type: 'deletion',\n        line: i + 1,\n        content: previousLine\n      });\n    } else {\n      changes.push({\n        type: 'modification',\n        line: i + 1,\n        oldContent: previousLine,\n        newContent: currentLine\n      });\n    }\n  }\n}\n\nconst diff = {\n  changes,\n  summary: {\n    additions: changes.filter(c => c.type === 'addition').length,\n    deletions: changes.filter(c => c.type === 'deletion').length,\n    modifications: changes.filter(c => c.type === 'modification').length,\n    totalChanges: changes.length\n  },\n  algorithm: 'line-based',\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('Generated diff:', JSON.stringify(diff, null, 2));\nconsole.log('=== GENERATE DIFF END ===');\n\nreturn [\n  {\n    json: {\n      ...input.json,\n      diff,\n      hasChanges: changes.length > 0\n    }\n  }\n];"
+      },
+      "id": "generate-diff",
+      "name": "Generate Diff",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Merge Agent Logic\nconst { diff, currentVersion, previousVersion } = $input.first().json;\n\n// Simple merge strategy: balanced\nconst strategy = 'balanced';\nconst threshold = 0.7;\n\nconst suggestions = [];\n\nfor (const change of diff.changes) {\n  let approved = false;\n  let confidence = 0.5;\n  let reasoning = '';\n  \n  // Simple heuristics\n  switch (change.type) {\n    case 'addition':\n      approved = change.content.length > 5; // Substantial additions\n      confidence = approved ? 0.8 : 0.3;\n      reasoning = approved ? 'Addition with substantial content' : 'Too short for addition';\n      break;\n      \n    case 'modification':\n      approved = change.newContent.length > change.oldContent.length * 0.8; // Don't lose too much content\n      confidence = approved ? 0.7 : 0.4;\n      reasoning = approved ? 'Modification preserves content' : 'Modification reduces content significantly';\n      break;\n      \n    case 'deletion':\n      approved = change.content.length < 20; // Only delete short lines\n      confidence = approved ? 0.6 : 0.2;\n      reasoning = approved ? 'Deletion of short content' : 'Deletion of substantial content';\n      break;\n  }\n  \n  suggestions.push({\n    change,\n    approved,\n    confidence,\n    reasoning\n  });\n}\n\nconst approvedChanges = suggestions.filter(s => s.approved);\nconst finalContent = applyChanges(previousVersion.content, approvedChanges.map(s => s.change));\n\nconst mergeSuggestion = {\n  suggestions,\n  approvedChanges: approvedChanges.map(c => c.change),\n  finalContent,\n  confidence: calculateConfidence(suggestions),\n  strategy,\n  reasoning: generateReasoning(suggestions, strategy)\n};\n\nfunction applyChanges(baseContent, changes) {\n  let result = baseContent;\n  const lines = result.split('\\n');\n  \n  // Sort changes by line number (reverse for correct application)\n  const sortedChanges = changes.sort((a, b) => b.line - a.line);\n  \n  for (const change of sortedChanges) {\n    switch (change.type) {\n      case 'addition':\n        lines.splice(change.line - 1, 0, change.content);\n        break;\n      case 'deletion':\n        lines.splice(change.line - 1, 1);\n        break;\n      case 'modification':\n        lines[change.line - 1] = change.newContent;\n        break;\n    }\n  }\n  \n  return lines.join('\\n');\n}\n\nfunction calculateConfidence(suggestions) {\n  if (suggestions.length === 0) return 1.0;\n  const totalConfidence = suggestions.reduce((sum, s) => sum + s.confidence, 0);\n  return totalConfidence / suggestions.length;\n}\n\nfunction generateReasoning(suggestions, strategy) {\n  const approvedCount = suggestions.filter(s => s.approved).length;\n  const totalCount = suggestions.length;\n  return `Merge strategy: ${strategy}. Approved ${approvedCount}/${totalCount} changes.`;\n}\n\nreturn [\n  {\n    json: {\n      ...$input.first().json,\n      mergeSuggestion,\n      shouldAutoMerge: mergeSuggestion.confidence >= threshold\n    }\n  }\n];"
+      },
+      "id": "merge-agent",
+      "name": "Merge Agent",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Store Result Logic\nconst { mergeSuggestion, shouldAutoMerge, documentId } = $input.first().json;\n\n// Simulate storing in database\nconst result = {\n  documentId,\n  baseVersion: 'v1.2',\n  newVersion: 'v1.3',\n  finalContent: mergeSuggestion.finalContent,\n  mergeStrategy: mergeSuggestion.strategy,\n  confidence: mergeSuggestion.confidence,\n  autoMerged: shouldAutoMerge,\n  timestamp: new Date().toISOString()\n};\n\n// In production, this would be a database insert\nconsole.log('Storing result:', result);\n\n// Send notification to UI via webhook\nconst notificationData = {\n  type: 'merge_completed',\n  documentId,\n  result,\n  mergeSuggestion\n};\n\nreturn [\n  {\n    json: {\n      ...$input.first().json,\n      stored: true,\n      autoMerged: shouldAutoMerge,\n      notificationData\n    }\n  }\n];"
+      },
+      "id": "store-result",
+      "name": "Store Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Notify UI - Demo Mode (no actual HTTP request)\nconsole.log('=== NOTIFY UI DEMO ===');\nconsole.log('Notification data:', JSON.stringify($input.first().json.notificationData, null, 2));\nconsole.log('=== END NOTIFY ===');\n\nreturn [\n  {\n    json: {\n      ...$input.first().json,\n      notificationSent: true,\n      demoMode: true,\n      message: 'Notification logged (Demo Mode)'\n    }\n  }\n];"
+      },
+      "id": "notify-ui",
+      "name": "Notify UI (Demo)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Agent output processed', result: $json } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Agent Output Receiver": {
+      "main": [
+        [
+          {
+            "node": "Load Previous Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Previous Version": {
+      "main": [
+        [
+          {
+            "node": "Generate Diff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Diff": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Agent": {
+      "main": [
+        [
+          {
+            "node": "Store Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Result": {
+      "main": [
+        [
+          {
+            "node": "Notify UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify UI": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "agent-versioning-workflow",
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "agent-versioning",
+      "name": "Agent Versioning"
+    }
+  ]
+}

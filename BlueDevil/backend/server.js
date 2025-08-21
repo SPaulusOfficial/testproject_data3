@@ -9,6 +9,7 @@ const notificationService = require('./notificationService');
 const permissionService = require('./permissionService');
 const { requirePermission, requireAnyPermission, requireAllPermissions, getUserPermissions } = require('./permissionMiddleware');
 const n8nProxy = require('./n8nProxy');
+const knowledgeEndpoints = require('./knowledgeEndpoints');
 require('dotenv').config({ path: __dirname + '/../.env' });
 
 // Debug logging setup
@@ -217,10 +218,14 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(fileUpload({
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  debug: true,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  debug: false,
   useTempFiles: false,
-  parseNested: true
+  parseNested: true,
+  createParentPath: true,
+  abortOnLimit: false,
+  safeFileNames: true,
+  preserveExtension: true
 }));
 
 // Serve static files (avatars)
@@ -228,6 +233,9 @@ app.use('/avatars', express.static(path.join(__dirname, '../public/avatars')));
 
 // n8n Chat Proxy
 app.use(n8nProxy);
+
+// Knowledge Management API
+app.use('/api/knowledge', knowledgeEndpoints);
 
 // Enhanced request logging middleware
 app.use((req, res, next) => {
@@ -631,7 +639,7 @@ async function initializeDatabase() {
         'User',
         'user',
         JSON.stringify({
-          permissions: ['UserProfile', 'ProjectData'],
+          permissions: ['UserProfile', 'KnowledgeBase'],
           permissionSets: ['BasicUser']
         })
       ]);
@@ -659,7 +667,7 @@ async function initializeDatabase() {
         'User',
         'user',
         JSON.stringify({
-          permissions: ['UserManagement'],
+          permissions: ['UserManagement', 'KnowledgeBase'],
           permissionSets: ['UserManager']
         })
       ]);
@@ -675,7 +683,7 @@ async function initializeDatabase() {
         WHERE username = 'normaluser'
       `, [
         JSON.stringify({
-          permissions: ['UserManagement'],
+          permissions: ['UserManagement', 'KnowledgeBase'],
           permissionSets: ['UserManager']
         })
       ]);

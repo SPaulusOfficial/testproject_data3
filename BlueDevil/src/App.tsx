@@ -20,6 +20,7 @@ import { VideoZuText } from '@/pages/rampup/VideoZuText'
 import { AudioZuText } from '@/pages/rampup/AudioZuText'
 import Workshops from '@/pages/rampup/Workshops'
 import WorkshopDetail from '@/pages/rampup/WorkshopDetail'
+import Knowledge from '@/pages/Knowledge'
 import { ArchitekturSketch } from '@/pages/rampup/ArchitekturSketch'
 import { ProjektplanSketch } from '@/pages/rampup/ProjektplanSketch'
 import { RfPQuestionsExtract } from '@/pages/rampup/RfPQuestionsExtract'
@@ -120,6 +121,11 @@ function App() {
             <Route path="/pre-sales/knowledge/workshops/:id" element={
               <PageWithLayout>
                 <WorkshopDetail />
+              </PageWithLayout>
+            } />
+            <Route path="/knowledge" element={
+              <PageWithLayout>
+                <Knowledge />
               </PageWithLayout>
             } />
 

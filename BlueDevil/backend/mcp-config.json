@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "salesfive-knowledge": {
+      "command": "node",
+      "args": ["/Users/stefan.paulus/Documents/GitHub/Salesfive_AI_Platform/BlueDevil/backend/mcpServer.js"],
+      "disabled": false,
+      "autoApprove": [
+        "submit_document",
+        "submit_text",
+        "submit_file",
+        "list_projects",
+        "list_folders"
+      ]
+    }
+  }
+}

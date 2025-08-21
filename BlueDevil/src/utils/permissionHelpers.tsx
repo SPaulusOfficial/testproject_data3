@@ -43,10 +43,10 @@ export const withPermission = (permission: string, component: React.ReactNode, f
   const { hasPermission } = usePermissions();
   
   if (hasPermission(permission)) {
-    return component;
+    return <>{component}</>;
   }
   
-  return fallback || null;
+  return fallback ? <>{fallback}</> : null;
 };
 
 // Permission-based button wrapper
@@ -61,16 +61,18 @@ export const PermissionButton: React.FC<{
   const { hasPermission } = usePermissions();
   
   if (!hasPermission(permission)) {
-    return fallback || null;
+    return fallback ? <>{fallback}</> : null;
   }
   
-  return {
-    type: 'button',
-    onClick,
-    className,
-    disabled,
-    children
-  };
+  return (
+    <button 
+      onClick={onClick} 
+      className={className} 
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
 };
 
 // Permission-based link wrapper
@@ -84,15 +86,14 @@ export const PermissionLink: React.FC<{
   const { hasPermission } = usePermissions();
   
   if (!hasPermission(permission)) {
-    return fallback || null;
+    return fallback ? <>{fallback}</> : null;
   }
   
-  return {
-    type: 'a',
-    href: to,
-    className,
-    children
-  };
+  return (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  );
 };
 
 // Permission-based section wrapper
@@ -105,8 +106,8 @@ export const PermissionSection: React.FC<{
   const { hasPermission } = usePermissions();
   
   if (!hasPermission(permission)) {
-    return fallback ? { type: 'div', className, children: fallback } : null;
+    return fallback ? <div className={className}>{fallback}</div> : null;
   }
   
-  return { type: 'div', className, children };
+  return <div className={className}>{children}</div>;
 };

@@ -48,8 +48,8 @@ async function hasPermission(user, requiredPermission) {
     return false;
   }
   
-  // Admin has all permissions (if active)
-  if (user.globalRole === 'admin') {
+  // Admins have all permissions (if active)
+  if (user.globalRole === 'admin' || user.globalRole === 'system_admin' || user.globalRole === 'project_admin') {
     console.log('✅ Admin user - access granted');
     return true;
   }

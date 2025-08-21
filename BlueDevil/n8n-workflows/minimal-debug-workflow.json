@@ -1,0 +1,90 @@
+{
+  "name": "Minimal Debug Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "debug-test",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-debug",
+      "name": "Debug Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "debug-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Minimal debug function\nconsole.log('=== MINIMAL DEBUG ===');\nconsole.log('$input:', JSON.stringify($input, null, 2));\nconsole.log('$input.first():', JSON.stringify($input.first(), null, 2));\nconsole.log('$input.first().json:', JSON.stringify($input.first()?.json, null, 2));\nconsole.log('$input.first().body:', JSON.stringify($input.first()?.body, null, 2));\nconsole.log('=== END DEBUG ===');\n\nreturn [\n  {\n    json: {\n      success: true,\n      message: 'Debug function executed',\n      received: $input.first(),\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "debug-function",
+      "name": "Debug Function",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Debug completed', data: $json } }}"
+      },
+      "id": "debug-response",
+      "name": "Debug Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Debug Webhook": {
+      "main": [
+        [
+          {
+            "node": "Debug Function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Function": {
+      "main": [
+        [
+          {
+            "node": "Debug Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "minimal-debug-workflow",
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "debug",
+      "name": "Debug"
+    }
+  ]
+}

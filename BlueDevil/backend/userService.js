@@ -449,7 +449,7 @@ class UserService {
 
   async verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, 'your-secret-key');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
       return decoded;
     } catch (error) {
       throw new Error('Invalid token');

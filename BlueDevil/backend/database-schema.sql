@@ -526,3 +526,193 @@ SELECT
 FROM project_memberships pm
 JOIN users u ON pm.user_id = u.id
 WHERE pm.is_active = true AND u.is_active = true;
+
+-- =====================================================
+-- KNOWLEDGE MANAGEMENT SYSTEM
+-- =====================================================
+
+-- Knowledge Folders Table
+CREATE TABLE IF NOT EXISTS knowledge_folders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  parent_folder_id UUID REFERENCES knowledge_folders(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  path VARCHAR(1000) NOT NULL, -- Full path for easy querying
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Knowledge Documents Table
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  folder_id UUID REFERENCES knowledge_folders(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(1000) NOT NULL,
+  file_size INTEGER NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_type VARCHAR(20) NOT NULL CHECK (file_type IN ('markdown', 'pdf', 'text', 'other')),
+  content_hash VARCHAR(64), -- For content deduplication
+  metadata JSONB DEFAULT '{}',
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Document Versions Table
+CREATE TABLE IF NOT EXISTS document_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+  version_number INTEGER NOT NULL,
+  content TEXT, -- For markdown/text files
+  file_path VARCHAR(1000), -- For PDFs and other files
+  change_description TEXT,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(document_id, version_number)
+);
+
+-- Document Tags Table
+CREATE TABLE IF NOT EXISTS document_tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+  tag VARCHAR(100) NOT NULL,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(document_id, tag)
+);
+
+-- Agent Submissions Table (for MCP server)
+CREATE TABLE IF NOT EXISTS agent_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  agent_id VARCHAR(255) NOT NULL,
+  agent_name VARCHAR(255),
+  submission_type VARCHAR(50) NOT NULL CHECK (submission_type IN ('document', 'text', 'file')),
+  title VARCHAR(255) NOT NULL,
+  content TEXT,
+  file_path VARCHAR(1000),
+  file_name VARCHAR(255),
+  mime_type VARCHAR(100),
+  target_folder_id UUID REFERENCES knowledge_folders(id),
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'processed')),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW(),
+  processed_at TIMESTAMP,
+  processed_by UUID REFERENCES users(id)
+);
+
+-- Indexes for Knowledge Management
+CREATE INDEX IF NOT EXISTS idx_knowledge_folders_project ON knowledge_folders(project_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_folders_parent ON knowledge_folders(parent_folder_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_folders_path ON knowledge_folders(path);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_project ON knowledge_documents(project_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_folder ON knowledge_documents(folder_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type ON knowledge_documents(file_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_created_by ON knowledge_documents(created_by);
+
+CREATE INDEX IF NOT EXISTS idx_document_versions_document ON document_versions(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_versions_number ON document_versions(version_number);
+
+CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_tags_tag ON document_tags(tag);
+
+CREATE INDEX IF NOT EXISTS idx_agent_submissions_project ON agent_submissions(project_id);
+CREATE INDEX IF NOT EXISTS idx_agent_submissions_agent ON agent_submissions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_submissions_status ON agent_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_agent_submissions_type ON agent_submissions(submission_type);
+
+-- RLS Policies for Knowledge Management
+ALTER TABLE knowledge_folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Knowledge folders policies
+CREATE POLICY knowledge_folders_select_policy ON knowledge_folders
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM project_memberships pm 
+      WHERE pm.project_id = knowledge_folders.project_id 
+      AND pm.user_id = current_setting('app.current_user_id')::UUID
+    )
+  );
+
+CREATE POLICY knowledge_folders_insert_policy ON knowledge_folders
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM project_memberships pm 
+      WHERE pm.project_id = knowledge_folders.project_id 
+      AND pm.user_id = current_setting('app.current_user_id')::UUID
+      AND pm.role IN ('owner', 'admin', 'member')
+    )
+  );
+
+-- Knowledge documents policies
+CREATE POLICY knowledge_documents_select_policy ON knowledge_documents
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM project_memberships pm 
+      WHERE pm.project_id = knowledge_documents.project_id 
+      AND pm.user_id = current_setting('app.current_user_id')::UUID
+    )
+  );
+
+CREATE POLICY knowledge_documents_insert_policy ON knowledge_documents
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM project_memberships pm 
+      WHERE pm.project_id = knowledge_documents.project_id 
+      AND pm.user_id = current_setting('app.current_user_id')::UUID
+      AND pm.role IN ('owner', 'admin', 'member')
+    )
+  );
+
+-- Agent submissions policies (agents can submit, users can view/process)
+CREATE POLICY agent_submissions_select_policy ON agent_submissions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM project_memberships pm 
+      WHERE pm.project_id = agent_submissions.project_id 
+      AND pm.user_id = current_setting('app.current_user_id')::UUID
+    )
+  );
+
+CREATE POLICY agent_submissions_insert_policy ON agent_submissions
+  FOR INSERT WITH CHECK (true); -- Allow all inserts (agents)
+
+-- =====================================================
+-- INITIAL DATA
+-- =====================================================
+
+-- Insert default knowledge permissions
+INSERT INTO permission_definitions (resource, action, description, category, is_system) VALUES
+('Knowledge', 'view', 'View knowledge documents and folders', 'knowledge', true),
+('Knowledge', 'create', 'Create new documents and folders', 'knowledge', true),
+('Knowledge', 'edit', 'Edit existing documents', 'knowledge', true),
+('Knowledge', 'delete', 'Delete documents and folders', 'knowledge', true),
+('Knowledge', 'upload', 'Upload files to knowledge base', 'knowledge', true),
+('Knowledge', 'process_agent_submissions', 'Process agent submissions', 'knowledge', true)
+ON CONFLICT (resource, action) DO NOTHING;
+
+-- Create root knowledge folder for each project
+INSERT INTO knowledge_folders (project_id, name, description, path, created_by)
+SELECT 
+  p.id,
+  'Root',
+  'Root knowledge folder',
+  '/',
+  p.owner_id
+FROM projects p
+WHERE NOT EXISTS (
+  SELECT 1 FROM knowledge_folders kf 
+  WHERE kf.project_id = p.id AND kf.path = '/'
+);

@@ -1,0 +1,9 @@
+🚀 MCP HTTP Server started on port 3004
+📋 Available endpoints:
+   GET  / - Server info
+   GET  /health - Health check
+   GET  /tools - List available tools
+   POST /tools/call - Execute MCP tool
+🔗 n8n MCP Node URL: http://localhost:3004
+📋 Available tools: knowledge_base_submit, get_knowledge_stats, list_recent_submissions
+🤖 MCP HTTP Server: Tool call received: get_knowledge_stats

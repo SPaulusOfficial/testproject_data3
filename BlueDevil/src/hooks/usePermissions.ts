@@ -100,33 +100,23 @@ export const usePermissions = () => {
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     
-    console.log('🔍 Checking permission:', permission, 'for user:', user);
-    console.log('🔍 User role:', user.role);
-    console.log('🔍 Static permissions:', user.permissions);
-    console.log('🔍 Dynamic permissions:', dynamicPermissions);
-    
     // System Admin and Project Admin have all permissions
     if (user.role === 'system_admin' || user.role === 'project_admin') {
-      console.log('✅ Admin user - access granted');
       return true;
     }
     
     // Check static permissions from user object
     const staticPermissions = (user.permissions || []).map((p: any) => typeof p === 'string' ? p : p.name);
-    console.log('🔍 Static permissions (processed):', staticPermissions);
     
     if (staticPermissions.includes(permission)) {
-      console.log('✅ Permission granted via static permissions');
       return true;
     }
     
     // Check dynamic permissions from backend
     if (dynamicPermissions.includes(permission)) {
-      console.log('✅ Permission granted via dynamic permissions');
       return true;
     }
     
-    console.log('❌ Permission denied:', permission);
     return false;
   };
 
@@ -145,9 +135,7 @@ export const usePermissions = () => {
   };
 
   const canAccessUserManagement = (): boolean => {
-    const result = hasPermission('UserManagement');
-    console.log('🔍 canAccessUserManagement result:', result);
-    return result;
+    return hasPermission('UserManagement');
   };
 
   const canAccessProjectManagement = (): boolean => {
@@ -164,6 +152,10 @@ export const usePermissions = () => {
 
   const canAccessAuditLogs = (): boolean => {
     return hasPermission('AuditLogs');
+  };
+
+  const canAccessKnowledge = (): boolean => {
+    return hasPermission('Knowledge');
   };
 
   const canAccessKnowledgeBase = (): boolean => {
@@ -189,6 +181,7 @@ export const usePermissions = () => {
     canAccessSystemSettings,
     canAccessNotifications,
     canAccessAuditLogs,
+    canAccessKnowledge,
     canAccessKnowledgeBase,
     canAccessWorkshopManagement,
     userPermissions: getUserPermissions(),

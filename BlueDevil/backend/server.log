@@ -1,9 +1,85 @@
-[dotenv@17.2.1] injecting env (19) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
-[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
-[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 auto-backup env with Radar: https://dotenvx.com/radar
-[dotenv@17.2.1] injecting env (0) from ../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+[dotenv@17.2.1] injecting env (19) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[dotenv@17.2.1] injecting env (0) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+[dotenv@17.2.1] injecting env (0) from ../.env -- tip: ⚙️  enable debug logging with { debug: true }
+🔧 Starting server with configuration:
+   - Port: 3002
+   - Environment: development
+   - Database Host: localhost
+   - Database Port: 5434
+   - Database Name: platform_db
 🚀 Notification API Server running on port 3002
+🔧 Starting database initialization...
+🗄️  Initializing database...
+✅ Loaded 6 whitelisted domains for password reset
 ✅ Database connection established
 ✅ Database 'platform_db' already exists
+📋 Creating database schema...
 ✅ Database schema initialized successfully
+👤 Updating existing normaluser with UserManagement permission...
+✅ Normaluser permissions updated
 ✅ Database initialized successfully
+✅ Server startup completed successfully
+📥 [2025-08-21T19:29:35.819Z] GET /api/notifications - IP: ::1 - Request #1
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:29:35.830Z] GET /api/notifications - Status: 304 - Time: 11ms
+📥 [2025-08-21T19:29:35.837Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #2
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:29:35.842Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 5ms
+📥 [2025-08-21T19:29:41.925Z] GET /api/health - IP: ::1 - Request #3
+🏥 Health check requested
+📤 [2025-08-21T19:29:41.925Z] GET /api/health - Status: 200 - Time: 0ms
+📥 [2025-08-21T19:29:43.476Z] GET /api/notifications - IP: ::1 - Request #4
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:29:43.494Z] GET /api/notifications - Status: 304 - Time: 17ms
+📥 [2025-08-21T19:29:43.515Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #5
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:29:43.527Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 11ms
+📥 [2025-08-21T19:29:45.802Z] GET /api/notifications - IP: ::1 - Request #6
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:29:45.809Z] GET /api/notifications - Status: 304 - Time: 6ms
+📥 [2025-08-21T19:29:45.812Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #7
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:29:45.815Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 3ms
+📥 [2025-08-21T19:29:55.809Z] GET /api/health - IP: ::1 - Request #8
+🏥 Health check requested
+📤 [2025-08-21T19:29:55.810Z] GET /api/health - Status: 200 - Time: 1ms
+📥 [2025-08-21T19:29:55.812Z] GET /api/notifications - IP: ::1 - Request #9
+📥 [2025-08-21T19:29:55.818Z] GET /api/health - IP: ::1 - Request #10
+🏥 Health check requested
+📤 [2025-08-21T19:29:55.818Z] GET /api/health - Status: 200 - Time: 0ms
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:29:55.821Z] GET /api/notifications - Status: 304 - Time: 9ms
+📥 [2025-08-21T19:29:55.826Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #11
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:29:55.832Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 6ms
+📥 [2025-08-21T19:30:05.806Z] GET /api/notifications - IP: ::1 - Request #12
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:30:05.813Z] GET /api/notifications - Status: 304 - Time: 7ms
+📥 [2025-08-21T19:30:05.818Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #13
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:30:05.822Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 4ms
+📥 [2025-08-21T19:30:13.144Z] GET /api/health - IP: ::1 - Request #14
+🏥 Health check requested
+📤 [2025-08-21T19:30:13.145Z] GET /api/health - Status: 200 - Time: 1ms
+📥 [2025-08-21T19:30:15.191Z] GET /api/health - IP: ::1 - Request #15
+🏥 Health check requested
+📤 [2025-08-21T19:30:15.191Z] GET /api/health - Status: 200 - Time: 0ms
+📥 [2025-08-21T19:30:15.806Z] GET /api/notifications - IP: ::1 - Request #16
+🔔 Fetching notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved 0 notifications for user 439ca6e3-fdfc-4590-88b7-26761a914af2
+📤 [2025-08-21T19:30:15.811Z] GET /api/notifications - Status: 304 - Time: 4ms
+📥 [2025-08-21T19:30:15.815Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - IP: ::1 - Request #17
+🔔 Getting unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2...
+✅ Retrieved unread count for user 439ca6e3-fdfc-4590-88b7-26761a914af2: 0
+📤 [2025-08-21T19:30:15.817Z] GET /api/notifications/439ca6e3-fdfc-4590-88b7-26761a914af2/unread-count - Status: 304 - Time: 2ms
