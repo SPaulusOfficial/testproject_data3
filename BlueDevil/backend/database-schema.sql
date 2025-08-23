@@ -1104,3 +1104,38 @@ WHERE NOT EXISTS (
   SELECT 1 FROM knowledge_folders kf 
   WHERE kf.project_id = p.id AND kf.path = '/'
 );
+
+-- Global email configuration table
+CREATE TABLE IF NOT EXISTS global_email_configuration (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  smtp_host VARCHAR(255),
+  smtp_port INTEGER,
+  smtp_user VARCHAR(255),
+  smtp_pass VARCHAR(255),
+  smtp_secure BOOLEAN DEFAULT FALSE,
+  from_email VARCHAR(255),
+  from_name VARCHAR(255),
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insert default global configuration if none exists
+INSERT INTO global_email_configuration (smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, from_email, from_name)
+SELECT 'smtp.gmail.com', 587, 'noreply@yourcompany.com', '', false, 'noreply@yourcompany.com', 'Salesfive Platform'
+WHERE NOT EXISTS (SELECT 1 FROM global_email_configuration);
+
+-- 2FA Email Verification table
+CREATE TABLE IF NOT EXISTS two_factor_auth (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  email_code VARCHAR(6) NOT NULL,
+  email_sent_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_2fa_user_id ON two_factor_auth(user_id);
+CREATE INDEX IF NOT EXISTS idx_2fa_expires_at ON two_factor_auth(expires_at);

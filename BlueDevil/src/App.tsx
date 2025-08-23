@@ -46,6 +46,7 @@ import SessionDemo from '@/pages/SessionDemo'
 import NavigationTracker from '@/components/NavigationTracker'
 import { PasswordResetRequest } from '@/pages/PasswordResetRequest'
 import { PasswordReset } from '@/pages/PasswordReset'
+import { TwoFactorAuth } from '@/components/Auth/TwoFactorAuth'
 
 // Simple Layout wrapper
 const PageWithLayout = ({ children }: { children: React.ReactNode }) => {

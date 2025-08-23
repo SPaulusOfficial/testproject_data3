@@ -11,6 +11,8 @@ const { requirePermission, requireAnyPermission, requireAllPermissions, getUserP
 const n8nProxy = require('./n8nProxy');
 const knowledgeEndpoints = require('./knowledgeEndpoints');
 const emailEndpoints = require('./emailEndpoints');
+const globalEmailRoutes = require('./globalEmailEndpoints');
+const twoFactorRoutes = require('./twoFactorEndpoints');
 require('dotenv').config({ path: __dirname + '/../.env' });
 
 // Debug logging setup
@@ -240,6 +242,80 @@ app.use('/api/knowledge', knowledgeEndpoints);
 
 // Email Template Management API
 app.use('/', emailEndpoints);
+app.use('/', globalEmailRoutes);
+app.use('/', twoFactorRoutes);
+
+// TODO: Remove before go live - Admin user update endpoint
+app.post('/api/admin/update-user', authenticateToken, async (req, res) => {
+  try {
+    const { oldEmail, newEmail, newUsername } = req.body;
+    const pool = await global.getPool();
+    
+    // Check if user is admin
+    if (req.user.globalRole !== 'system_admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    // Update the user
+    const result = await pool.query(`
+      UPDATE users 
+      SET email = $1, username = $2
+      WHERE email = $3
+    `, [newEmail, newUsername, oldEmail]);
+    
+    if (result.rowCount > 0) {
+      console.log(`✅ Admin user updated: ${oldEmail} -> ${newEmail}`);
+      res.json({ 
+        success: true, 
+        message: 'User updated successfully',
+        oldEmail,
+        newEmail,
+        newUsername
+      });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+    
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// TODO: Remove before go live - Cleanup 2FA codes endpoint
+app.post('/api/admin/cleanup-2fa', authenticateToken, async (req, res) => {
+  try {
+    const pool = await global.getPool();
+    
+    // Check if user is admin
+    if (req.user.globalRole !== 'system_admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    // Delete all 2FA codes
+    const result = await pool.query(`
+      DELETE FROM two_factor_auth
+    `);
+    
+    // Reset last_2fa_verification for all users
+    const resetResult = await pool.query(`
+      UPDATE users 
+      SET last_2fa_verification = NULL
+    `);
+    
+    console.log(`✅ Cleaned up ${result.rowCount} 2FA codes and reset ${resetResult.rowCount} users`);
+    res.json({ 
+      success: true, 
+      message: '2FA codes cleaned up successfully',
+      deletedCodes: result.rowCount,
+      resetUsers: resetResult.rowCount
+    });
+    
+  } catch (error) {
+    console.error('Error cleaning up 2FA codes:', error);
+    res.status(500).json({ error: 'Failed to cleanup 2FA codes' });
+  }
+});
 
 // Enhanced request logging middleware
 app.use((req, res, next) => {
@@ -358,6 +434,48 @@ function requireAdmin(req, res, next) {
   }
   debugAuth(`Admin access granted for user: ${req.user.userId}`);
   next();
+}
+
+// Middleware to enforce 2FA verification
+async function require2FA(req, res, next) {
+  try {
+    const userId = req.user.id || req.user.userId;
+    const pool = await global.getPool();
+    
+    // Check if user has completed 2FA verification for this session
+    const userResult = await pool.query(`
+      SELECT last_2fa_verification FROM users WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const lastVerification = userResult.rows[0].last_2fa_verification;
+    
+    // Always require 2FA if no verification exists
+    if (!lastVerification) {
+      return res.status(403).json({ 
+        error: 'Two-factor authentication required',
+        requires2FA: true
+      });
+    }
+    
+    // Check if this is a new session (token was issued after last 2FA verification)
+    const tokenIssuedAt = req.user.iat ? new Date(req.user.iat * 1000) : new Date();
+    
+    if (lastVerification < tokenIssuedAt) {
+      return res.status(403).json({ 
+        error: 'Two-factor authentication required',
+        requires2FA: true
+      });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Error checking 2FA requirement:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 // Project access middleware
@@ -586,7 +704,7 @@ async function initializeDatabase() {
         smtp_host VARCHAR(255),
         smtp_port INTEGER,
         smtp_user VARCHAR(255),
-        smtp_password VARCHAR(255),
+        smtp_pass VARCHAR(255),
         smtp_secure BOOLEAN DEFAULT FALSE,
         from_email VARCHAR(255),
         from_name VARCHAR(255),
@@ -653,11 +771,71 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_email_log_project ON email_template_usage_log(project_id);
       CREATE INDEX IF NOT EXISTS idx_email_log_process ON email_template_usage_log(process_name);
       CREATE INDEX IF NOT EXISTS idx_email_templates_process ON default_email_templates(process_name);
+      
+      -- 2FA Email Verification table
+      CREATE TABLE IF NOT EXISTS two_factor_auth (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        email_code VARCHAR(6) NOT NULL,
+        email_sent_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL,
+        is_used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Create indexes for 2FA
+      CREATE INDEX IF NOT EXISTS idx_2fa_user_id ON two_factor_auth(user_id);
+      CREATE INDEX IF NOT EXISTS idx_2fa_expires_at ON two_factor_auth(expires_at);
+      
+      -- Global Email Configuration table
+      CREATE TABLE IF NOT EXISTS global_email_configuration (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_user VARCHAR(255),
+        smtp_pass VARCHAR(255),
+        smtp_secure BOOLEAN DEFAULT FALSE,
+        from_email VARCHAR(255),
+        from_name VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Add last_2fa_verification column to users table if it doesn't exist
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_2fa_verification') THEN
+          ALTER TABLE users ADD COLUMN last_2fa_verification TIMESTAMP;
+        END IF;
+      END $$;
     `;
     
     await dbClient.query(schema);
     console.log('✅ Database schema initialized successfully');
     debugDb('Database schema created successfully');
+    
+    // Insert default global email configuration if none exists
+    const globalEmailCheck = await dbClient.query(`
+      SELECT id FROM global_email_configuration
+    `);
+    
+    if (globalEmailCheck.rows.length === 0) {
+      console.log('📧 Creating default global email configuration...');
+      await dbClient.query(`
+        INSERT INTO global_email_configuration (smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, from_email, from_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        'smtp.gmail.com',
+        587,
+        'noreply@yourcompany.com',
+        '',
+        false,
+        'noreply@yourcompany.com',
+        'Salesfive Platform'
+      ]);
+      console.log('✅ Default global email configuration created');
+    }
     
     // Insert default admin user if not exists
     const adminCheck = await dbClient.query(`
@@ -677,7 +855,7 @@ async function initializeDatabase() {
         hashedPassword,
         'Admin',
         'User',
-        'admin',
+        'system_admin',
         JSON.stringify({
           permissions: ['UserManagement', 'ProjectManagement', 'SystemSettings'],
           permissionSets: ['FullAdministrator']
@@ -911,7 +1089,7 @@ app.get('/api/debug/token', authenticateToken, (req, res) => {
 // =====================================================
 
 // Get all users
-app.get('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+app.get('/api/users', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
   try {
     console.log('👥 Fetching all users...');
     debugApi('Fetching all users');
@@ -1058,7 +1236,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Create user
-app.post('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+app.post('/api/users', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
   try {
     console.log('👤 Creating new user...');
     debugApi('Creating new user', req.body);
@@ -1105,7 +1283,7 @@ app.post('/api/users', authenticateToken, requirePermission('UserManagement'), a
 });
 
 // Update user
-app.put('/api/users/:id', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+app.put('/api/users/:id', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { username, email, firstName, lastName, phone, globalRole, customData, metadata } = req.body;
@@ -1160,7 +1338,7 @@ app.put('/api/users/:id', authenticateToken, requirePermission('UserManagement')
 });
 
 // Toggle user active status
-app.patch('/api/users/:id/status', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
+app.patch('/api/users/:id/status', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
@@ -1219,7 +1397,7 @@ app.patch('/api/users/:id/status', authenticateToken, requirePermission('UserMan
 // =====================================================
 
 // Get all projects
-app.get('/api/projects', authenticateToken, async (req, res) => {
+app.get('/api/projects', authenticateToken, require2FA, async (req, res) => {
   try {
     console.log('📁 Fetching all projects...');
     debugApi('Fetching all projects');

@@ -32,6 +32,11 @@ Notifications
 NotificationSettings
 NotificationTemplates
 
+# Email Management
+EmailManagement
+EmailTemplates
+EmailConfiguration
+
 # Audit & Security
 AuditLogs
 SecuritySettings

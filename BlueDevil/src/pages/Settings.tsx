@@ -1,7 +1,10 @@
-import React from 'react'
-import { Settings as SettingsIcon, Shield, Database, Bell, User, Key } from 'lucide-react'
+import React, { useState } from 'react'
+import { Settings as SettingsIcon, Shield, Database, Bell, User, Key, Mail } from 'lucide-react'
+import { GlobalEmailConfiguration } from '../components/Settings/GlobalEmailConfiguration'
 
 export const SettingsPage: React.FC = () => {
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+
   const settingsSections = [
     {
       id: 'general',
@@ -38,6 +41,12 @@ export const SettingsPage: React.FC = () => {
       title: 'API & Integration',
       icon: Key,
       description: 'Externe Schnittstellen und Webhooks'
+    },
+    {
+      id: 'email',
+      title: 'E-Mail-Server',
+      icon: Mail,
+      description: 'Globale E-Mail-Konfiguration'
     }
   ]
 
@@ -56,7 +65,7 @@ export const SettingsPage: React.FC = () => {
         {settingsSections.map((section) => {
           const Icon = section.icon
           return (
-            <div key={section.id} className="card p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div key={section.id} className="card p-6 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveSection(section.id)}>
               <div className="flex items-start space-x-4">
                 <div className="w-12 h-12 bg-digital-blue rounded-full flex items-center justify-center flex-shrink-0">
                   <Icon size={24} className="text-white" />
@@ -73,6 +82,55 @@ export const SettingsPage: React.FC = () => {
           )
         })}
       </div>
+
+      {/* Section Content */}
+      {activeSection && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-h3 font-bold text-black">
+              {settingsSections.find(s => s.id === activeSection)?.title}
+            </h2>
+            <button 
+              onClick={() => setActiveSection(null)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+          </div>
+          
+          {activeSection === 'email' && <GlobalEmailConfiguration />}
+          {activeSection === 'general' && (
+            <div className="text-gray-600">
+              <p>Allgemeine Systemeinstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+          {activeSection === 'security' && (
+            <div className="text-gray-600">
+              <p>Sicherheitseinstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+          {activeSection === 'data' && (
+            <div className="text-gray-600">
+              <p>Datenverwaltungseinstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+          {activeSection === 'notifications' && (
+            <div className="text-gray-600">
+              <p>Benachrichtigungseinstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+          {activeSection === 'users' && (
+            <div className="text-gray-600">
+              <p>Benutzereinstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+          {activeSection === 'api' && (
+            <div className="text-gray-600">
+              <p>API-Einstellungen werden hier konfiguriert.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick Settings */}
       <div className="card p-6">

@@ -81,6 +81,40 @@ function authenticateToken(req, res, next) {
   }
 }
 
+// Middleware to enforce 2FA verification
+async function require2FA(req, res, next) {
+  try {
+    const userId = req.user.id || req.user.userId;
+    const pool = await global.getPool();
+    
+    // Check if user has completed 2FA verification recently (within 24 hours)
+    const userResult = await pool.query(`
+      SELECT last_2fa_verification FROM users WHERE id = $1
+    `, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const lastVerification = userResult.rows[0].last_2fa_verification;
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    // If no verification or verification is older than 24 hours, require 2FA
+    if (!lastVerification || lastVerification < twentyFourHoursAgo) {
+      return res.status(403).json({ 
+        error: 'Two-factor authentication required',
+        requires2FA: true
+      });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Error checking 2FA requirement:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // Middleware to check if user has access to a specific project
 function checkProjectAccess(req, res, next) {
   const { projectId } = req.params;
@@ -112,6 +146,7 @@ module.exports = {
   verifyToken,
   authenticateUser,
   authenticateToken,
+  require2FA,
   checkProjectAccess,
   requireAdmin,
   users

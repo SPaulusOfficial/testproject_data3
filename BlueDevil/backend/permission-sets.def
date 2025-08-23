@@ -19,6 +19,9 @@ SystemStatus
 Notifications
 NotificationSettings
 NotificationTemplates
+EmailManagement
+EmailTemplates
+EmailConfiguration
 AuditLogs
 SecuritySettings
 AccessControl
@@ -37,6 +40,9 @@ ProjectCreation
 ProjectMembers
 Notifications
 NotificationSettings
+EmailManagement
+EmailTemplates
+EmailConfiguration
 AuditLogs
 KnowledgeBase
 WorkshopManagement
@@ -49,5 +55,8 @@ ProjectMembers
 SystemStatus
 Notifications
 NotificationSettings
+EmailManagement
+EmailTemplates
+EmailConfiguration
 KnowledgeBase
 WorkshopManagement

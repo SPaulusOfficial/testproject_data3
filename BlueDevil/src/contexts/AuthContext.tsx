@@ -17,6 +17,9 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   isAuthenticated: boolean
+  requires2FA: boolean
+  check2FAStatus: () => Promise<void>
+  complete2FA: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,6 +39,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [requires2FA, setRequires2FA] = useState(false)
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -101,6 +105,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       setUser(user)
+      
+      // Check if 2FA is required
+      await check2FAStatus();
     } catch (error) {
       console.error('Login failed:', error)
       throw error
@@ -112,14 +119,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     authService.logout()
     setUser(null)
+    setRequires2FA(false)
   }
+
+  const check2FAStatus = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:3002/api/auth/2fa/status', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRequires2FA(data.requiresVerification);
+      }
+    } catch (error) {
+      console.error('Error checking 2FA status:', error);
+    }
+  };
+
+  const complete2FA = () => {
+    setRequires2FA(false);
+  };
 
   const value: AuthContextType = {
     user,
     isLoading,
     login,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    requires2FA,
+    check2FAStatus,
+    complete2FA
   }
 
   return (

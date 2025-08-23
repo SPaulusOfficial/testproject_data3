@@ -147,67 +147,11 @@ class PasswordService {
   generateResetEmailContent(token, resetUrl) {
     return {
       subject: 'Password Reset Request - Salesfive Platform',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
-            <h1>Salesfive Platform</h1>
-            <h2>Password Reset Request</h2>
-          </div>
-          
-          <div style="padding: 30px; background: #f9f9f9;">
-            <p>Hello,</p>
-            
-            <p>We received a request to reset your password for your Salesfive Platform account.</p>
-            
-            <p>If you didn't request this password reset, please ignore this email.</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}?token=${token}" 
-                 style="background: #0025D1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                Reset Password
-              </a>
-            </div>
-            
-            <p><strong>Important:</strong></p>
-            <ul>
-              <li>This link will expire in 1 hour</li>
-              <li>You can only use this link once</li>
-              <li>If the link doesn't work, copy and paste this URL into your browser:</li>
-            </ul>
-            
-            <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 3px;">
-              ${resetUrl}?token=${token}
-            </p>
-            
-            <p>Best regards,<br>Salesfive Platform Team</p>
-          </div>
-          
-          <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
-            <p>This is an automated message. Please do not reply to this email.</p>
-          </div>
-        </div>
-      `,
-      text: `
-Password Reset Request - Salesfive Platform
-
-Hello,
-
-We received a request to reset your password for your Salesfive Platform account.
-
-If you didn't request this password reset, please ignore this email.
-
-To reset your password, click the following link:
-${resetUrl}?token=${token}
-
-Important:
-- This link will expire in 1 hour
-- You can only use this link once
-
-Best regards,
-Salesfive Platform Team
-
-This is an automated message. Please do not reply to this email.
-      `
+      parameters: {
+        USER_NAME: 'User', // Will be replaced with actual user name
+        RESET_URL: `${resetUrl}?token=${token}`,
+        EXPIRY_HOURS: '1'
+      }
     };
   }
 
@@ -215,57 +159,13 @@ This is an automated message. Please do not reply to this email.
   generateAdminPasswordEmailContent(email, temporaryPassword) {
     return {
       subject: 'Your Account Has Been Created - Salesfive Platform',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
-            <h1>Salesfive Platform</h1>
-            <h2>Account Created</h2>
-          </div>
-          
-          <div style="padding: 30px; background: #f9f9f9;">
-            <p>Hello,</p>
-            
-            <p>Your account has been created by an administrator.</p>
-            
-            <p><strong>Your temporary password is:</strong></p>
-            <div style="background: #f0f0f0; padding: 15px; border-radius: 5px; text-align: center; font-family: monospace; font-size: 18px; margin: 20px 0;">
-              ${temporaryPassword}
-            </div>
-            
-            <p><strong>Important:</strong></p>
-            <ul>
-              <li>Please change your password immediately after your first login</li>
-              <li>This temporary password is only valid for your first login</li>
-              <li>You can change your password in your profile settings</li>
-            </ul>
-            
-            <p>Best regards,<br>Salesfive Platform Team</p>
-          </div>
-          
-          <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
-            <p>This is an automated message. Please do not reply to this email.</p>
-          </div>
-        </div>
-      `,
-      text: `
-Your Account Has Been Created - Salesfive Platform
-
-Hello,
-
-Your account has been created by an administrator.
-
-Your temporary password is: ${temporaryPassword}
-
-Important:
-- Please change your password immediately after your first login
-- This temporary password is only valid for your first login
-- You can change your password in your profile settings
-
-Best regards,
-Salesfive Platform Team
-
-This is an automated message. Please do not reply to this email.
-      `
+      parameters: {
+        USER_NAME: 'User', // Will be replaced with actual user name
+        USER_EMAIL: email,
+        USERNAME: email.split('@')[0], // Simple username from email
+        TEMP_PASSWORD: temporaryPassword,
+        LOGIN_URL: process.env.FRONTEND_URL || 'http://localhost:3000'
+      }
     };
   }
 
