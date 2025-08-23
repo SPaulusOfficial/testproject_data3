@@ -690,6 +690,394 @@ CREATE POLICY agent_submissions_insert_policy ON agent_submissions
   FOR INSERT WITH CHECK (true); -- Allow all inserts (agents)
 
 -- =====================================================
+-- EMAIL TEMPLATE SYSTEM
+-- =====================================================
+
+-- Email Templates Table (Project-specific email templates)
+CREATE TABLE IF NOT EXISTS email_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  process_name VARCHAR(100) NOT NULL, -- Unique process identifier (e.g., 'password_reset', 'registration_notification', '2fa_email')
+  subject VARCHAR(255) NOT NULL,
+  html_content TEXT NOT NULL,
+  text_content TEXT NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- Ensure unique process names per project
+  UNIQUE(project_id, process_name)
+);
+
+-- Email Template Parameters Table (Available placeholders for each template)
+CREATE TABLE IF NOT EXISTS email_template_parameters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id UUID REFERENCES email_templates(id) ON DELETE CASCADE,
+  parameter_name VARCHAR(100) NOT NULL, -- e.g., 'USER_NAME', 'RESET_URL', 'TEMP_PASSWORD'
+  parameter_type VARCHAR(50) NOT NULL DEFAULT 'string', -- string, url, email, date, number
+  description TEXT,
+  is_required BOOLEAN DEFAULT FALSE,
+  default_value TEXT,
+  validation_regex VARCHAR(255), -- Optional regex for validation
+  created_at TIMESTAMP DEFAULT NOW(),
+  
+  -- Ensure unique parameter names per template
+  UNIQUE(template_id, parameter_name)
+);
+
+-- Email Template Usage Log Table (Audit trail for email sending)
+CREATE TABLE IF NOT EXISTS email_template_usage_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id UUID REFERENCES email_templates(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  recipient_email VARCHAR(255) NOT NULL,
+  recipient_user_id UUID REFERENCES users(id),
+  process_name VARCHAR(100) NOT NULL,
+  subject VARCHAR(255) NOT NULL,
+  parameters_used JSONB NOT NULL, -- Store the actual parameters used
+  sent_at TIMESTAMP DEFAULT NOW(),
+  sent_by UUID REFERENCES users(id),
+  status VARCHAR(20) NOT NULL DEFAULT 'sent', -- sent, failed, pending
+  error_message TEXT,
+  email_provider VARCHAR(50), -- smtp, sendgrid, etc.
+  email_id VARCHAR(255) -- External email service ID for tracking
+);
+
+-- Email Configuration Table (Project-specific email settings)
+CREATE TABLE IF NOT EXISTS email_configurations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL DEFAULT 'smtp', -- smtp, sendgrid, mailgun, etc.
+  host VARCHAR(255),
+  port INTEGER,
+  username VARCHAR(255),
+  password_encrypted TEXT,
+  from_email VARCHAR(255) NOT NULL,
+  from_name VARCHAR(255),
+  reply_to_email VARCHAR(255),
+  use_ssl BOOLEAN DEFAULT TRUE,
+  use_tls BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  updated_by UUID REFERENCES users(id),
+  
+  -- Ensure one configuration per project
+  UNIQUE(project_id)
+);
+
+-- Default Email Templates (System-wide defaults)
+CREATE TABLE IF NOT EXISTS default_email_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  process_name VARCHAR(100) NOT NULL UNIQUE,
+  subject VARCHAR(255) NOT NULL,
+  html_content TEXT NOT NULL,
+  text_content TEXT NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insert default templates for common processes
+INSERT INTO default_email_templates (process_name, subject, html_content, text_content, description) VALUES
+(
+  'password_reset',
+  'Password Reset Request - Salesfive Platform',
+  '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
+      <h1>Salesfive Platform</h1>
+      <h2>Password Reset Request</h2>
+    </div>
+    
+    <div style="padding: 30px; background: #f9f9f9;">
+      <p>Hello {{{USER_NAME}}},</p>
+      
+      <p>We received a request to reset your password for your Salesfive Platform account.</p>
+      
+      <p>If you didn''t request this password reset, please ignore this email.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{{RESET_URL}}}" 
+           style="background: #0025D1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          Reset Password
+        </a>
+      </div>
+      
+      <p><strong>Important:</strong></p>
+      <ul>
+        <li>This link will expire in {{{EXPIRY_HOURS}}} hours</li>
+        <li>You can only use this link once</li>
+        <li>If the link doesn''t work, copy and paste this URL into your browser:</li>
+      </ul>
+      
+      <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 3px;">
+        {{{RESET_URL}}}
+      </p>
+      
+      <p>Best regards,<br>Salesfive Platform Team</p>
+    </div>
+    
+    <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>',
+  'Password Reset Request - Salesfive Platform
+
+Hello {{{USER_NAME}}},
+
+We received a request to reset your password for your Salesfive Platform account.
+
+If you didn''t request this password reset, please ignore this email.
+
+To reset your password, click the following link:
+{{{RESET_URL}}}
+
+Important:
+- This link will expire in {{{EXPIRY_HOURS}}} hours
+- You can only use this link once
+
+Best regards,
+Salesfive Platform Team
+
+This is an automated message. Please do not reply to this email.',
+  'Default template for password reset emails'
+),
+(
+  'registration_notification',
+  'Welcome to Salesfive Platform - Your Account Has Been Created',
+  '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
+      <h1>Salesfive Platform</h1>
+      <h2>Welcome!</h2>
+    </div>
+    
+    <div style="padding: 30px; background: #f9f9f9;">
+      <p>Hello {{{USER_NAME}}},</p>
+      
+      <p>Welcome to the Salesfive Platform! Your account has been created successfully.</p>
+      
+      <p><strong>Your login credentials:</strong></p>
+      <ul>
+        <li><strong>Email:</strong> {{{USER_EMAIL}}}</li>
+        <li><strong>Username:</strong> {{{USERNAME}}}</li>
+        <li><strong>Temporary Password:</strong> {{{TEMP_PASSWORD}}}</li>
+      </ul>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{{LOGIN_URL}}}" 
+           style="background: #0025D1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          Login to Platform
+        </a>
+      </div>
+      
+      <p><strong>Important:</strong></p>
+      <ul>
+        <li>Please change your password immediately after your first login</li>
+        <li>This temporary password is only valid for your first login</li>
+        <li>You can change your password in your profile settings</li>
+      </ul>
+      
+      <p>Best regards,<br>Salesfive Platform Team</p>
+    </div>
+    
+    <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>',
+  'Welcome to Salesfive Platform - Your Account Has Been Created
+
+Hello {{{USER_NAME}}},
+
+Welcome to the Salesfive Platform! Your account has been created successfully.
+
+Your login credentials:
+- Email: {{{USER_EMAIL}}}
+- Username: {{{USERNAME}}}
+- Temporary Password: {{{TEMP_PASSWORD}}}
+
+To access the platform, visit: {{{LOGIN_URL}}}
+
+Important:
+- Please change your password immediately after your first login
+- This temporary password is only valid for your first login
+- You can change your password in your profile settings
+
+Best regards,
+Salesfive Platform Team
+
+This is an automated message. Please do not reply to this email.',
+  'Default template for new user registration notifications'
+),
+(
+  '2fa_email',
+  'Two-Factor Authentication Code - Salesfive Platform',
+  '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
+      <h1>Salesfive Platform</h1>
+      <h2>Two-Factor Authentication</h2>
+    </div>
+    
+    <div style="padding: 30px; background: #f9f9f9;">
+      <p>Hello {{{USER_NAME}}},</p>
+      
+      <p>You have requested a two-factor authentication code for your Salesfive Platform account.</p>
+      
+      <p><strong>Your authentication code is:</strong></p>
+      <div style="background: #f0f0f0; padding: 15px; border-radius: 5px; text-align: center; font-family: monospace; font-size: 24px; margin: 20px 0; letter-spacing: 3px;">
+        {{{AUTH_CODE}}}
+      </div>
+      
+      <p><strong>Important:</strong></p>
+      <ul>
+        <li>This code will expire in {{{EXPIRY_MINUTES}}} minutes</li>
+        <li>If you didn''t request this code, please ignore this email</li>
+        <li>Never share this code with anyone</li>
+      </ul>
+      
+      <p>Best regards,<br>Salesfive Platform Team</p>
+    </div>
+    
+    <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>',
+  'Two-Factor Authentication Code - Salesfive Platform
+
+Hello {{{USER_NAME}}},
+
+You have requested a two-factor authentication code for your Salesfive Platform account.
+
+Your authentication code is: {{{AUTH_CODE}}}
+
+Important:
+- This code will expire in {{{EXPIRY_MINUTES}}} minutes
+- If you didn''t request this code, please ignore this email
+- Never share this code with anyone
+
+Best regards,
+Salesfive Platform Team
+
+This is an automated message. Please do not reply to this email.',
+  'Default template for two-factor authentication emails'
+);
+
+-- Insert default parameters for each template
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'USER_NAME',
+  'string',
+  'Full name of the user',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'password_reset';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'RESET_URL',
+  'url',
+  'Password reset URL with token',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'password_reset';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'EXPIRY_HOURS',
+  'number',
+  'Number of hours until the reset link expires',
+  FALSE,
+  '1'
+FROM default_email_templates t WHERE t.process_name = 'password_reset';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'USER_NAME',
+  'string',
+  'Full name of the user',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'registration_notification';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'USER_EMAIL',
+  'email',
+  'Email address of the user',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'registration_notification';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'USERNAME',
+  'string',
+  'Username for login',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'registration_notification';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'TEMP_PASSWORD',
+  'string',
+  'Temporary password for first login',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'registration_notification';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'LOGIN_URL',
+  'url',
+  'URL to the login page',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = 'registration_notification';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'USER_NAME',
+  'string',
+  'Full name of the user',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = '2fa_email';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'AUTH_CODE',
+  'string',
+  'Six-digit authentication code',
+  TRUE,
+  NULL
+FROM default_email_templates t WHERE t.process_name = '2fa_email';
+
+INSERT INTO email_template_parameters (template_id, parameter_name, parameter_type, description, is_required, default_value) 
+SELECT 
+  t.id,
+  'EXPIRY_MINUTES',
+  'number',
+  'Number of minutes until the code expires',
+  FALSE,
+  '10'
+FROM default_email_templates t WHERE t.process_name = '2fa_email';
+
+-- =====================================================
 -- INITIAL DATA
 -- =====================================================
 

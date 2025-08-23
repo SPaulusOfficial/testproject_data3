@@ -10,6 +10,7 @@ const permissionService = require('./permissionService');
 const { requirePermission, requireAnyPermission, requireAllPermissions, getUserPermissions } = require('./permissionMiddleware');
 const n8nProxy = require('./n8nProxy');
 const knowledgeEndpoints = require('./knowledgeEndpoints');
+const emailEndpoints = require('./emailEndpoints');
 require('dotenv').config({ path: __dirname + '/../.env' });
 
 // Debug logging setup
@@ -236,6 +237,9 @@ app.use(n8nProxy);
 
 // Knowledge Management API
 app.use('/api/knowledge', knowledgeEndpoints);
+
+// Email Template Management API
+app.use('/', emailEndpoints);
 
 // Enhanced request logging middleware
 app.use((req, res, next) => {
@@ -575,6 +579,66 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      -- Email Configuration table
+      CREATE TABLE IF NOT EXISTS email_configurations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_user VARCHAR(255),
+        smtp_password VARCHAR(255),
+        smtp_secure BOOLEAN DEFAULT FALSE,
+        from_email VARCHAR(255),
+        from_name VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(project_id)
+      );
+
+      -- Email Template Usage Log table
+      CREATE TABLE IF NOT EXISTS email_template_usage_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        template_id UUID,
+        project_id UUID REFERENCES projects(id),
+        recipient_email VARCHAR(255) NOT NULL,
+        process_name VARCHAR(100) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        parameters JSONB DEFAULT '{}',
+        user_id UUID REFERENCES users(id),
+        status VARCHAR(50) NOT NULL,
+        error_message TEXT,
+        email_provider VARCHAR(50),
+        email_id VARCHAR(255),
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Default Email Templates table
+      CREATE TABLE IF NOT EXISTS default_email_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        process_name VARCHAR(100) NOT NULL UNIQUE,
+        subject VARCHAR(255) NOT NULL,
+        html_content TEXT NOT NULL,
+        text_content TEXT NOT NULL,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- Email Template Parameters table
+      CREATE TABLE IF NOT EXISTS email_template_parameters (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        template_id UUID REFERENCES default_email_templates(id) ON DELETE CASCADE,
+        parameter_name VARCHAR(100) NOT NULL,
+        parameter_type VARCHAR(50) NOT NULL,
+        description TEXT,
+        is_required BOOLEAN DEFAULT TRUE,
+        default_value TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(template_id, parameter_name)
+      );
+
       -- Create indexes
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -585,6 +649,10 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
       CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
       CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
+      CREATE INDEX IF NOT EXISTS idx_email_config_project ON email_configurations(project_id);
+      CREATE INDEX IF NOT EXISTS idx_email_log_project ON email_template_usage_log(project_id);
+      CREATE INDEX IF NOT EXISTS idx_email_log_process ON email_template_usage_log(process_name);
+      CREATE INDEX IF NOT EXISTS idx_email_templates_process ON default_email_templates(process_name);
     `;
     
     await dbClient.query(schema);
@@ -689,6 +757,37 @@ async function initializeDatabase() {
       ]);
       console.log('✅ Normaluser permissions updated');
       debugDb('Normaluser permissions updated successfully');
+    }
+    
+    // Insert default email templates if not exists
+    console.log('📧 Creating default email templates...');
+    debugDb('Creating default email templates');
+    
+    const templateCheck = await dbClient.query(`
+      SELECT COUNT(*) as count FROM default_email_templates
+    `);
+    
+    if (templateCheck.rows[0].count === '0') {
+      const defaultTemplates = require('./email-templates');
+      
+      for (const template of defaultTemplates) {
+        await dbClient.query(`
+          INSERT INTO default_email_templates (process_name, subject, html_content, text_content, description)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          template.process_name,
+          template.subject,
+          template.html_content,
+          template.text_content,
+          template.description
+        ]);
+      }
+      
+      console.log('✅ Default email templates created');
+      debugDb('Default email templates created successfully');
+    } else {
+      console.log('✅ Default email templates already exist');
+      debugDb('Default email templates already exist');
     }
     
     dbClient.release();

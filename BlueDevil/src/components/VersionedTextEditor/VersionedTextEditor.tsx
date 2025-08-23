@@ -59,6 +59,10 @@ export interface VersionedTextEditorProps {
   
   // Custom actions
   customActions?: React.ReactNode;
+  
+  // Document info
+  documentId?: string;
+  projectId?: string;
 }
 
 const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
@@ -96,7 +100,11 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
   allowDeleteVersions = false,
   
   // Custom actions
-  customActions
+  customActions,
+  
+  // Document info
+  documentId,
+  projectId
 }) => {
   // Size configuration
   const getSizeConfig = () => {
@@ -167,18 +175,32 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastAutoSave, setLastAutoSave] = useState<Date>(new Date());
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [editorRef, setEditorRef] = useState(null);
 
-  // Initialize current version
+  // Update localVersions when versions prop changes
+  useEffect(() => {
+    console.log('🔄 VersionedTextEditor - versions prop changed:', versions.length);
+    setLocalVersions(versions);
+  }, [versions]);
+
+  // Initialize current version - but don't automatically set content if user has unsaved changes
   useEffect(() => {
     if (currentVersionId) {
       const version = localVersions.find(v => v.id === currentVersionId);
       if (version) {
         setCurrentVersion(version);
-        setContent(version.content);
+        // Only set content if no unsaved changes AND content is empty
+        if (!hasUnsavedChanges && (!content || content.length === 0)) {
+          setContent(version.content);
+        }
       }
     } else if (localVersions.length > 0) {
       setCurrentVersion(localVersions[localVersions.length - 1]);
-      setContent(localVersions[localVersions.length - 1].content);
+      // Only set content if no unsaved changes AND content is empty
+      if (!hasUnsavedChanges && (!content || content.length === 0)) {
+        setContent(localVersions[localVersions.length - 1].content);
+      }
     } else {
       // Create initial version if none exists
       const initialVersion: Version = {
@@ -191,7 +213,15 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
       setLocalVersions([initialVersion]);
       setCurrentVersion(initialVersion);
     }
-  }, [currentVersionId, localVersions, initialContent]);
+  }, [currentVersionId, localVersions, initialContent, hasUnsavedChanges, content]);
+
+  // DISABLED: Sync content with initialContent changes - was causing infinite loops
+  // useEffect(() => {
+  //   if (initialContent !== content && !hasUnsavedChanges) {
+  //     console.log('🔄 VersionedTextEditor - Syncing content with initialContent');
+  //     setContent(initialContent);
+  //   }
+  // }, [initialContent, hasUnsavedChanges]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -209,19 +239,45 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
     return () => clearInterval(interval);
   }, [enableAutoSave, onSave, readOnly, content, currentVersion, lastAutoSave, autoSaveInterval]);
 
-  // Update content when current version changes
-  useEffect(() => {
-    if (currentVersion) {
-      setContent(currentVersion.content);
-    }
-  }, [currentVersion]);
+  // DISABLED: Update content when current version changes - was overwriting user changes
+  // useEffect(() => {
+  //   if (currentVersion && currentVersion.content !== content) {
+  //     setContent(currentVersion.content);
+  //   }
+  // }, [currentVersion]);
 
-  // Notify parent of content changes
+  // Notify parent of content changes and track unsaved changes
   useEffect(() => {
-    if (onContentChange) {
-      onContentChange(content);
+    if (onContentChange && content !== initialContent) {
+      // Convert HTML content back to Markdown for parent notification
+      let contentToNotify = content;
+      if (content.includes('<') && !content.includes('```')) {
+        // This is HTML content, convert to Markdown
+        contentToNotify = content
+          .replace(/<h1[^>]*>(.*?)<\/h1>/g, '# $1\n')
+          .replace(/<h2[^>]*>(.*?)<\/h2>/g, '## $1\n')
+          .replace(/<h3[^>]*>(.*?)<\/h3>/g, '### $1\n')
+          .replace(/<strong[^>]*>(.*?)<\/strong>/g, '**$1**')
+          .replace(/<em[^>]*>(.*?)<\/em>/g, '*$1*')
+          .replace(/<ul[^>]*>(.*?)<\/ul>/gs, (match, content) => {
+            return content.replace(/<li[^>]*>(.*?)<\/li>/g, '- $1\n');
+          })
+          .replace(/<ol[^>]*>(.*?)<\/ol>/gs, (match, content) => {
+            return content.replace(/<li[^>]*>(.*?)<\/li>/g, '1. $1\n');
+          })
+          .replace(/<p[^>]*>(.*?)<\/p>/g, '$1\n')
+          .replace(/<br\s*\/?>/g, '\n')
+          .replace(/<[^>]*>/g, '') // Remove any remaining HTML tags
+          .trim();
+      }
+      onContentChange(contentToNotify);
     }
-  }, [content, onContentChange]);
+    
+    // Track unsaved changes
+    const hasChanges = content !== (currentVersion?.content || initialContent);
+    console.log('🔄 VersionedTextEditor - Content changed, hasChanges:', hasChanges, 'content length:', content.length, 'initialContent length:', initialContent.length);
+    setHasUnsavedChanges(hasChanges);
+  }, [content, onContentChange, initialContent, currentVersion]);
 
   const handleAutoSave = async () => {
     if (!onSave || readOnly) return;
@@ -245,12 +301,41 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
     
     try {
       const newVersionNumber = localVersions.length + 1;
-      await onSave(content, newVersionNumber, `Version ${newVersionNumber}`);
+      
+      // Get content directly from the editor if available
+      let contentToSave = content;
+      if (editorRef && editorRef.getHTML) {
+        const htmlContent = editorRef.getHTML();
+        console.log('💾 handleSave - HTML Content from editor:', htmlContent.length);
+        
+        // Convert HTML back to Markdown for storage
+        // This is a simple conversion - in production you might want a more robust solution
+        contentToSave = htmlContent
+          .replace(/<h1[^>]*>(.*?)<\/h1>/g, '# $1\n')
+          .replace(/<h2[^>]*>(.*?)<\/h2>/g, '## $1\n')
+          .replace(/<h3[^>]*>(.*?)<\/h3>/g, '### $1\n')
+          .replace(/<strong[^>]*>(.*?)<\/strong>/g, '**$1**')
+          .replace(/<em[^>]*>(.*?)<\/em>/g, '*$1*')
+          .replace(/<ul[^>]*>(.*?)<\/ul>/gs, (match, content) => {
+            return content.replace(/<li[^>]*>(.*?)<\/li>/g, '- $1\n');
+          })
+          .replace(/<ol[^>]*>(.*?)<\/ol>/gs, (match, content) => {
+            return content.replace(/<li[^>]*>(.*?)<\/li>/g, '1. $1\n');
+          })
+          .replace(/<p[^>]*>(.*?)<\/p>/g, '$1\n')
+          .replace(/<br\s*\/?>/g, '\n')
+          .replace(/<[^>]*>/g, '') // Remove any remaining HTML tags
+          .trim();
+        
+        console.log('💾 handleSave - Converted to Markdown:', contentToSave.length);
+      }
+      
+      await onSave(contentToSave, newVersionNumber, `Version ${newVersionNumber}`);
       
       // Update local state if save was successful
       const newVersion: Version = {
         id: `v${newVersionNumber}`,
-        content: content,
+        content: contentToSave, // Use the markdown content, not the HTML content
         timestamp: new Date(),
         version: newVersionNumber,
         description: `Version ${newVersionNumber}`
@@ -266,6 +351,8 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
       });
       
       setCurrentVersion(newVersion);
+      setContent(contentToSave); // Update content state with markdown content
+      setHasUnsavedChanges(false);
       
       if (onVersionSelect) {
         onVersionSelect(newVersion);
@@ -345,12 +432,15 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
       {/* Editor */}
       <div className="flex-1 flex">
         {/* Main Editor */}
-        <div className={`flex-1 flex flex-col ${editorClassName}`}>
+        <div className={`flex-1 flex flex-col overflow-hidden ${editorClassName}`}>
           <WYSIWYGEditor
             content={content}
             onChange={setContent}
             placeholder={placeholder}
             size={size}
+            isMarkdown={true}
+            readOnly={readOnly}
+            onEditorReady={setEditorRef}
           />
         </div>
 
@@ -371,11 +461,15 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className={`${sizeConfig.buttonPadding} rounded-lg hover:bg-gray-200 transition-colors mb-2`}
+                className={`${sizeConfig.buttonPadding} rounded-lg hover:bg-gray-200 transition-colors mb-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                 title="Save Version"
               >
-                <Save className={`${sizeConfig.buttonIconSize} text-gray-600`} />
-            </button>
+                {isSaving ? (
+                  <div className={`animate-spin rounded-full border-b-2 border-gray-600 ${sizeConfig.buttonIconSize}`}></div>
+                ) : (
+                  <Save className={`${sizeConfig.buttonIconSize} text-gray-600`} />
+                )}
+              </button>
             )}
             
             {/* Compare Button */}
@@ -393,8 +487,8 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
 
         {/* Expanded Version History */}
         {showVersionHistory && isVersionHistoryExpanded && (
-          <div className={`w-64 border-l bg-gray-50 ${sizeConfig.sidebarPadding}`}>
-            <div className={`flex items-center justify-between mb-2`}>
+          <div className={`w-64 border-l bg-gray-50 flex flex-col h-full ${sizeConfig.sidebarPadding}`}>
+            <div className={`flex items-center justify-between mb-2 flex-shrink-0`}>
               <h3 className={`${sizeConfig.sidebarTextSize} font-medium text-gray-800`}>Version History</h3>
               <button
                 onClick={() => setIsVersionHistoryExpanded(false)}
@@ -404,7 +498,7 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
               </button>
             </div>
             
-            <div className={sizeConfig.versionListGap}>
+            <div className={`flex-1 overflow-y-auto ${sizeConfig.versionListGap} max-h-96 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100`}>
               {localVersions.map((version) => (
                 <div
                   key={version.id}
@@ -492,6 +586,8 @@ const VersionedTextEditor: React.FC<VersionedTextEditorProps> = ({
           currentVersion={currentVersion}
           selectedVersion={selectedVersion}
           versions={localVersions}
+          documentId={documentId}
+          projectId={projectId}
           onClose={() => {
             setShowCompareModal(false);
             setSelectedVersion(null);

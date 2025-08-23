@@ -112,12 +112,15 @@ export default function KnowledgeDocumentList({
   }
 
   const handleViewDocument = (document: Document) => {
-    navigate(`/knowledge/document/${document.id}`)
+    setSelectedDocument(document)
+    setIsViewerOpen(true)
   }
 
   const handleEditDocument = (document: Document) => {
     if (document.file_type === 'markdown') {
-      navigate(`/knowledge/document/${document.id}/edit`)
+      setSelectedDocument(document)
+      setIsViewerOpen(true)
+      // The viewer will handle edit mode internally
     } else {
       alert('Only markdown documents can be edited')
     }
@@ -181,25 +184,47 @@ export default function KnowledgeDocumentList({
   }
 
   const handleVersionSelect = async (documentId: string, version: number) => {
-    try {
-      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
-      const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3002/api'
-      const response = await fetch(`${API_BASE}/knowledge/documents/${documentId}/content?version=${version}`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      })
-
-      if (response.ok) {
-        return Promise.resolve()
-      } else {
-        throw new Error('Failed to load version')
-      }
-    } catch (error) {
-      console.error('Error loading version:', error)
-      return Promise.reject(error)
+  try {
+    console.log('🔄 handleVersionSelect - documentId:', documentId);
+    console.log('🔄 handleVersionSelect - version:', version);
+    console.log('🔄 handleVersionSelect - projectId:', projectId);
+    
+    // Validate version parameter
+    if (version === undefined || version === null) {
+      console.error('🔄 handleVersionSelect - Invalid version:', version);
+      throw new Error('Invalid version number');
     }
+    
+    // Validate project ID
+    if (!projectId) {
+      console.error('🔄 handleVersionSelect - No project ID available');
+      throw new Error('Project ID is required');
+    }
+    
+    const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
+    const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3002/api'
+    
+    const response = await fetch(`${API_BASE}/knowledge/documents/${documentId}/content?version=${version}&project_id=${projectId}`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    })
+
+    console.log('🔄 handleVersionSelect - response status:', response.status);
+
+    if (response.ok) {
+      console.log('🔄 handleVersionSelect - Version loaded successfully');
+      return Promise.resolve()
+    } else {
+      const errorData = await response.json();
+      console.error('🔄 handleVersionSelect - error response:', errorData);
+      throw new Error(errorData.error || 'Failed to load version')
+    }
+  } catch (error) {
+    console.error('🔄 handleVersionSelect - catch error:', error)
+    return Promise.reject(error)
   }
+}
 
   const handleDeleteDocument = async (document: Document) => {
     if (!confirm(`Möchten Sie das Dokument "${document.title}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) {

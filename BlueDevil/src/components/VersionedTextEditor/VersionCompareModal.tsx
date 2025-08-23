@@ -24,6 +24,8 @@ interface VersionCompareModalProps {
   currentVersion: Version;
   selectedVersion: Version | null;
   versions: Version[];
+  documentId?: string; // Add documentId prop
+  projectId?: string; // Add projectId prop
   onClose: () => void;
   onVersionSelect: (version: Version) => void;
 }
@@ -41,18 +43,85 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
   currentVersion,
   selectedVersion,
   versions,
+  documentId,
+  projectId,
   onClose,
   onVersionSelect
 }) => {
   const [compareVersion, setCompareVersion] = useState<Version | null>(selectedVersion || null);
-  const [diffMode, setDiffMode] = useState<'classical' | 'semantic'>('semantic');
+  const [diffMode, setDiffMode] = useState<'classical' | 'semantic' | 'git'>('git');
   const [selectedChanges, setSelectedChanges] = useState<Set<number>>(new Set());
   const [mergedContent, setMergedContent] = useState<string>('');
+  const [gitDiff, setGitDiff] = useState<string>('');
+  const [loadingDiff, setLoadingDiff] = useState<boolean>(false);
+  
+  // Two version selection for comparison
+  const [versionA, setVersionA] = useState<Version>(currentVersion);
+  const [versionB, setVersionB] = useState<Version | null>(selectedVersion || null);
 
   // Update compareVersion when selectedVersion changes
   useEffect(() => {
     setCompareVersion(selectedVersion);
   }, [selectedVersion]);
+
+  // Load Git diff when versions change
+  useEffect(() => {
+    if (versionA && versionB && diffMode === 'git') {
+      loadGitDiff();
+    }
+  }, [versionA, versionB, diffMode]);
+
+  const loadGitDiff = async () => {
+    if (!versionA || !versionB) return;
+    
+    // Validate projectId
+    if (!projectId) {
+      console.error('🔍 loadGitDiff - No projectId provided');
+      setGitDiff('Error: No project ID available');
+      setLoadingDiff(false);
+      return;
+    }
+    
+    setLoadingDiff(true);
+    try {
+      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+      const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3002/api';
+      
+      // Use the documentId prop or fallback to URL params
+      const docId = documentId || new URLSearchParams(window.location.search).get('documentId') || 'current-document';
+      
+      // Use commit hashes for comparison
+      const oldCommit = (versionA as any).commitHash || versionA.id;
+      const newCommit = (versionB as any).commitHash || versionB.id;
+      
+      console.log('🔍 loadGitDiff - Loading diff between:', oldCommit, 'and', newCommit);
+      console.log('🔍 loadGitDiff - projectId:', projectId);
+      
+      const response = await fetch(
+        `${API_BASE}/knowledge/documents/${docId}/diff?old_commit=${oldCommit}&new_commit=${newCommit}&project_id=${projectId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setGitDiff(data.diff || '');
+        console.log('🔍 loadGitDiff - Diff loaded successfully, length:', data.diff?.length || 0);
+      } else {
+        console.error('🔍 loadGitDiff - Failed to load diff:', response.status);
+        setGitDiff('Failed to load diff');
+      }
+    } catch (error) {
+      console.error('🔍 loadGitDiff - Error loading diff:', error);
+      setGitDiff('Error loading diff');
+    } finally {
+      setLoadingDiff(false);
+    }
+  };
 
   // Split content into sentences (handle HTML)
   const splitIntoSentences = (text: string): string[] => {
@@ -144,9 +213,9 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
 
   // Generate merged content based on selections
   const generateMergedContent = () => {
-    if (!compareVersion) return currentVersion.content;
+    if (!versionA || !versionB) return versionA?.content || '';
 
-    const semanticDiff = generateSemanticDiff(compareVersion.content, currentVersion.content);
+    const semanticDiff = generateSemanticDiff(versionA.content, versionB.content);
     const selectedSentences: string[] = [];
 
     semanticDiff.forEach((diff, index) => {
@@ -175,7 +244,7 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
   // Update merged content when selections change
   useMemo(() => {
     setMergedContent(generateMergedContent());
-  }, [selectedChanges, compareVersion]);
+  }, [selectedChanges, versionA, versionB]);
 
   const handleToggleSelection = (index: number) => {
     const newSelections = new Set(selectedChanges);
@@ -193,68 +262,100 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
     onClose();
   };
 
-  if (!compareVersion) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-96">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Version auswählen</h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {versions
-              .filter(v => v.id !== currentVersion.id)
-              .map((version) => (
-                <div
-                  key={version.id}
-                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                  onClick={() => {
-                    setCompareVersion(version);
-                    onVersionSelect(version);
-                  }}
-                >
-                  <div className="font-medium">Version {version.version}</div>
-                  <div className="text-sm text-gray-500">
-                    {version.timestamp.toLocaleString()}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  const semanticDiff = generateSemanticDiff(compareVersion.content, currentVersion.content);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-7xl h-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-3">
-            <GitCompare className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold">Version Comparison</h3>
-            <div className="text-sm text-gray-500">
-              Version {compareVersion.version} ↔ Version {currentVersion.version}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <GitCompare className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold">Version Comparison</h3>
+            </div>
+            
+            {/* Version Selection Dropdowns */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Version A:</label>
+                <select
+                  value={versionA?.id || ''}
+                  onChange={(e) => {
+                    const selectedVersion = versions.find(v => v.id === e.target.value);
+                    if (selectedVersion) setVersionA(selectedVersion);
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      Version {version.version} - {version.timestamp.toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="text-gray-400">↔</div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Version B:</label>
+                <select
+                  value={versionB?.id || ''}
+                  onChange={(e) => {
+                    const selectedVersion = versions.find(v => v.id === e.target.value);
+                    if (selectedVersion) setVersionB(selectedVersion);
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Version auswählen...</option>
+                  {versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      Version {version.version} - {version.timestamp.toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setDiffMode(diffMode === 'classical' ? 'semantic' : 'classical')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded ${
-                diffMode === 'semantic'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              {diffMode === 'semantic' ? <Brain className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-              {diffMode === 'semantic' ? 'Semantic' : 'Classical'}
-            </button>
+            {/* Diff Mode Buttons */}
+            <div className="flex items-center gap-1 border border-gray-300 rounded-md">
+              <button
+                onClick={() => setDiffMode('git')}
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-l-md transition-colors ${
+                  diffMode === 'git'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <GitCompare className="w-4 h-4" />
+                Git
+              </button>
+              <button
+                onClick={() => setDiffMode('classical')}
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm transition-colors ${
+                  diffMode === 'classical'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Classical
+              </button>
+              <button
+                onClick={() => setDiffMode('semantic')}
+                className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-r-md transition-colors ${
+                  diffMode === 'semantic'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Brain className="w-4 h-4" />
+                Semantic
+              </button>
+            </div>
+            
             <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
               <X className="w-5 h-5" />
             </button>
@@ -266,10 +367,34 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
           {/* Diff View */}
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-auto">
-              {diffMode === 'classical' ? (
+              {!versionA || !versionB ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <GitCompare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Bitte wähle zwei Versionen zum Vergleichen aus</p>
+                  </div>
+                </div>
+              ) : diffMode === 'git' ? (
+                <div className="p-4">
+                  {loadingDiff ? (
+                    <div className="flex items-center justify-center h-32">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <span className="ml-2 text-gray-600">Lade Git Diff...</span>
+                    </div>
+                  ) : gitDiff ? (
+                    <pre className="text-sm bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-full font-mono">
+                      {gitDiff}
+                    </pre>
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      Keine Unterschiede gefunden oder Fehler beim Laden des Diffs
+                    </div>
+                  )}
+                </div>
+              ) : diffMode === 'classical' ? (
                 <ReactDiffViewer
-                  oldValue={compareVersion.content}
-                  newValue={currentVersion.content}
+                  oldValue={versionA.content}
+                  newValue={versionB.content}
                   splitView={true}
                   hideLineNumbers={false}
                   showDiffOnly={false}
@@ -277,7 +402,7 @@ const VersionCompareModal: React.FC<VersionCompareModalProps> = ({
                 />
               ) : (
                 <div className="p-4 space-y-3">
-                  {semanticDiff.map((diff, index) => (
+                  {generateSemanticDiff(versionA.content, versionB.content).map((diff, index) => (
                     <div
                       key={index}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${

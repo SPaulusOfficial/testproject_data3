@@ -5,6 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { PermissionGuard } from '../components/PermissionGuard';
 import { ProjectWithMembers, ProjectMember } from '../types/Project';
 import GitHubIntegrationModal from '../components/Knowledge/GitHubIntegrationModal';
+import EmailTemplateManager from '../components/EmailTemplates/EmailTemplateManager';
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,7 +18,7 @@ const ProjectDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showGitHubModal, setShowGitHubModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'integrations'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'integrations' | 'email-templates'>('overview');
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -287,6 +288,18 @@ const ProjectDetail: React.FC = () => {
                 Integrations
               </button>
             </PermissionGuard>
+            <PermissionGuard permission="EmailManagement">
+              <button
+                onClick={() => setActiveTab('email-templates')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'email-templates'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Email Templates
+              </button>
+            </PermissionGuard>
           </nav>
         </div>
       </div>
@@ -450,6 +463,13 @@ const ProjectDetail: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Email Templates Tab */}
+      {activeTab === 'email-templates' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <EmailTemplateManager projectId={id || ''} />
         </div>
       )}
 

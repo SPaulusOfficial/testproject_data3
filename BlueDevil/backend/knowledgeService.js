@@ -626,6 +626,8 @@ class KnowledgeService {
   }
 
   async getDocumentVersions(documentId) {
+    console.log('🔍 getDocumentVersions - documentId:', documentId);
+    
     const result = await this.pool.query(
       `SELECT dv.*, u.first_name, u.last_name
        FROM document_versions dv
@@ -634,6 +636,10 @@ class KnowledgeService {
        ORDER BY dv.version_number DESC`,
       [documentId]
     )
+    
+    console.log('🔍 getDocumentVersions - found versions:', result.rows.length);
+    console.log('🔍 getDocumentVersions - versions:', result.rows.map(v => ({ id: v.id, version: v.version_number, summary: v.change_summary })));
+    
     return result.rows
   }
 
@@ -714,9 +720,12 @@ class KnowledgeService {
         email: userInfo?.email || 'user@salesfive.com'
       };
       
+      // Use the file_path to get the actual filename with hash
+      const actualFileName = path.basename(document.file_path);
+      
       await gitService.updateFile(
         projectId,
-        document.file_name,
+        actualFileName, // Use the actual filename with hash
         content,
         description || `Update ${document.title}`,
         author
@@ -729,21 +738,24 @@ class KnowledgeService {
         console.warn('GitHub push failed, but file was updated in local git:', pushError.message);
       }
       
-      // Get new version number
-      const versionResult = await client.query(
-        'SELECT MAX(version_number) as max_version FROM document_versions WHERE document_id = $1',
+      // Get current version number from database
+      const currentVersionResult = await client.query(
+        `SELECT COALESCE(MAX(version_number), 0) as current_version 
+         FROM document_versions 
+         WHERE document_id = $1`,
         [documentId]
       );
-      const newVersion = (versionResult.rows[0].max_version || 0) + 1;
+      const currentVersion = currentVersionResult.rows[0].current_version;
+      const newVersion = currentVersion + 1; // Next version number
       
-      // Create new version record
-      await client.query(
-        `INSERT INTO document_versions (document_id, version_number, content, file_path, change_summary, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [documentId, newVersion, content, document.file_path, description, userId]
-      );
+      console.log(`📝 updateDocumentWithGit - Current version: ${currentVersion}, New version: ${newVersion}`);
       
-      // Update document record
+      // Get current Git history for logging
+      const gitHistory = await gitService.getFileHistory(projectId, actualFileName);
+      console.log(`📝 updateDocumentWithGit - Current git history: ${gitHistory.length} commits`);
+      console.log(`📝 updateDocumentWithGit - New version number: ${newVersion}`);
+      
+      // Update document record with new version number
       await client.query(
         `UPDATE knowledge_documents 
          SET version = $1, updated_at = NOW()
@@ -751,11 +763,34 @@ class KnowledgeService {
         [newVersion, documentId]
       );
       
+      // Save version to document_versions table
+      console.log(`📝 updateDocumentWithGit - Saving version ${newVersion} to database...`);
+      await client.query(
+        `INSERT INTO document_versions (document_id, version_number, content, file_path, change_summary, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          documentId,
+          newVersion,
+          content,
+          document.file_path,
+          description || `Version ${newVersion} - Updated content`,
+          userId
+        ]
+      );
+      console.log(`📝 updateDocumentWithGit - Version ${newVersion} saved to database successfully`);
+      
       await client.query('COMMIT');
+      
+      // Get the commit hash from the latest commit
+      const projectDir = await gitService.ensureProjectRepo(projectId);
+      const latestCommitHash = await gitService.getLatestCommitHash(projectDir);
+      
+      console.log(`📝 updateDocumentWithGit - Commit successful, hash: ${latestCommitHash}`);
       
       return {
         success: true,
         version: newVersion,
+        commitHash: latestCommitHash,
         document: await this.getDocument(documentId, projectId)
       };
     } catch (error) {
@@ -766,30 +801,141 @@ class KnowledgeService {
     }
   }
 
-  async getDocumentVersionsFromGit(documentId, projectId) {
+  async getDocumentVersionsHybrid(documentId, projectId) {
     try {
+      console.log('🔍 getDocumentVersionsHybrid - documentId:', documentId);
+      console.log('🔍 getDocumentVersionsHybrid - projectId:', projectId);
+      
       const document = await this.getDocument(documentId, projectId);
       if (!document) {
         throw new Error('Document not found');
       }
       
-      const gitHistory = await gitService.getFileHistory(projectId, document.file_name);
+      console.log('🔍 getDocumentVersionsHybrid - document found:', document.file_name);
       
-      return gitHistory.map((commit, index) => ({
-        id: commit.hash,
-        version_number: gitHistory.length - index,
-        content: null, // Will be loaded on demand
-        file_path: document.file_path,
-        change_summary: commit.message,
-        created_by: null,
-        created_at: commit.date,
-        author: commit.author,
-        email: commit.email,
-        commit_hash: commit.hash
-      }));
+      // Get Git history for version list - use actual filename with hash
+      const actualFileName = path.basename(document.file_path);
+      const gitHistory = await gitService.getFileHistory(projectId, actualFileName);
+      console.log('🔍 getDocumentVersionsHybrid - git history length:', gitHistory.length);
+      
+      // Get DB versions for content
+      const dbVersions = await this.getDocumentVersions(documentId);
+      console.log('🔍 getDocumentVersionsHybrid - db versions length:', dbVersions.length);
+      
+      // Merge Git history with DB content
+      const versions = gitHistory.map((commit, index) => {
+        const versionNumber = gitHistory.length - index;
+        const dbVersion = dbVersions.find(v => v.version_number === versionNumber);
+        
+        return {
+          id: commit.hash,
+          version_number: versionNumber,
+          content: dbVersion?.content || '', // Use DB content if available
+          file_path: document.file_path,
+          change_summary: commit.message,
+          created_by: dbVersion?.created_by || null,
+          created_at: commit.date,
+          author: commit.author,
+          email: commit.email,
+          commit_hash: commit.hash,
+          first_name: commit.author?.split(' ')[0] || 'Unknown',
+          last_name: commit.author?.split(' ').slice(1).join(' ') || 'User'
+        };
+      });
+      
+      console.log('🔍 getDocumentVersionsHybrid - merged versions:', versions.length);
+      return versions;
     } catch (error) {
-      console.error('Error getting Git versions:', error);
-      // Fallback to database versions
+      console.error('🔍 getDocumentVersionsHybrid - Error getting hybrid versions:', error);
+      console.error('🔍 getDocumentVersionsHybrid - Error stack:', error.stack);
+      
+      // Fallback to database versions if Git fails
+      console.log('🔍 getDocumentVersionsHybrid - Falling back to database versions...');
+      return this.getDocumentVersions(documentId);
+    }
+  }
+
+  async getDocumentVersionsFromGit(documentId, projectId) {
+    try {
+      console.log('🔍 getDocumentVersionsFromGit - documentId:', documentId);
+      console.log('🔍 getDocumentVersionsFromGit - projectId:', projectId);
+      
+      const document = await this.getDocument(documentId, projectId);
+      if (!document) {
+        throw new Error('Document not found');
+      }
+      
+      console.log('🔍 getDocumentVersionsFromGit - document found:', document.file_name);
+      
+      const gitHistory = await gitService.getFileHistory(projectId, document.file_name);
+      console.log('🔍 getDocumentVersionsFromGit - git history length:', gitHistory.length);
+      
+      // Transform Git history to match expected format and load content
+      const versions = await Promise.all(gitHistory.map(async (commit, index) => {
+        try {
+          // For repository-wide history, we need to find the relevant file content
+          // Try to load content for the specific document file, but fall back gracefully
+          let content = '';
+          try {
+            content = await gitService.getFileContent(projectId, document.file_name, commit.hash);
+          } catch (fileError) {
+            // If the specific file doesn't exist in this commit, try to get any markdown content
+            console.log(`📄 Commit ${commit.hash} doesn't contain ${document.file_name}, trying to find any markdown content`);
+            try {
+              const { stdout } = await require('child_process').execSync(
+                `git show ${commit.hash} --name-only --pretty=format:`,
+                { cwd: await gitService.ensureProjectRepo(projectId), encoding: 'utf8' }
+              );
+              const files = stdout.trim().split('\n').filter(f => f.endsWith('.md'));
+              if (files.length > 0) {
+                content = await gitService.getFileContent(projectId, files[0], commit.hash);
+              }
+            } catch (fallbackError) {
+              console.log(`📄 No markdown content found in commit ${commit.hash}`);
+            }
+          }
+          
+          return {
+            id: commit.hash,
+            version_number: gitHistory.length - index, // Latest commit = highest version number
+            content: content, // Load content for each version
+            file_path: document.file_path,
+            change_summary: commit.message,
+            created_by: null,
+            created_at: commit.date,
+            author: commit.author,
+            email: commit.email,
+            commit_hash: commit.hash,
+            first_name: commit.author?.split(' ')[0] || 'Unknown',
+            last_name: commit.author?.split(' ').slice(1).join(' ') || 'User'
+          };
+        } catch (error) {
+          console.error(`Error loading content for commit ${commit.hash}:`, error);
+          return {
+            id: commit.hash,
+            version_number: gitHistory.length - index,
+            content: '', // Empty content if loading fails
+            file_path: document.file_path,
+            change_summary: commit.message,
+            created_by: null,
+            created_at: commit.date,
+            author: commit.author,
+            email: commit.email,
+            commit_hash: commit.hash,
+            first_name: commit.author?.split(' ')[0] || 'Unknown',
+            last_name: commit.author?.split(' ').slice(1).join(' ') || 'User'
+          };
+        }
+      }));
+      
+      console.log('🔍 getDocumentVersionsFromGit - transformed versions:', versions.length);
+      return versions;
+    } catch (error) {
+      console.error('🔍 getDocumentVersionsFromGit - Error getting Git versions:', error);
+      console.error('🔍 getDocumentVersionsFromGit - Error stack:', error.stack);
+      
+      // Fallback to database versions if Git fails
+      console.log('🔍 getDocumentVersionsFromGit - Falling back to database versions...');
       return this.getDocumentVersions(documentId);
     }
   }
@@ -813,16 +959,30 @@ class KnowledgeService {
 
   async getDocumentDiff(documentId, projectId, oldCommit, newCommit) {
     try {
+      console.log(`🔍 getDocumentDiff - START - documentId: ${documentId}, projectId: ${projectId}`);
+      console.log(`🔍 getDocumentDiff - oldCommit: ${oldCommit}, newCommit: ${newCommit}`);
+      
       const document = await this.getDocument(documentId, projectId);
       if (!document) {
+        console.error(`🔍 getDocumentDiff - Document not found: ${documentId}`);
         throw new Error('Document not found');
       }
       
-      const diff = await gitService.getFileDiff(projectId, document.file_name, oldCommit, newCommit);
+      console.log(`🔍 getDocumentDiff - Document found: ${document.title}`);
+      console.log(`🔍 getDocumentDiff - file_path: ${document.file_path}`);
+      console.log(`🔍 getDocumentDiff - file_name: ${document.file_name}`);
+      
+      // Use the actual filename with hash from file_path
+      const actualFileName = path.basename(document.file_path);
+      console.log(`🔍 getDocumentDiff - actualFileName: ${actualFileName}`);
+      
+      const diff = await gitService.getFileDiff(projectId, actualFileName, oldCommit, newCommit);
+      console.log(`🔍 getDocumentDiff - Diff length: ${diff.length}`);
       return diff;
     } catch (error) {
-      console.error('Error getting Git diff:', error);
-      return '';
+      console.error('🔍 getDocumentDiff - Error getting Git diff:', error);
+      console.error('🔍 getDocumentDiff - Error stack:', error.stack);
+      throw error; // Re-throw to get proper error response
     }
   }
 

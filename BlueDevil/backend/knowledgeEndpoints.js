@@ -10,13 +10,40 @@ async function authenticateToken(req, res, next) {
   try {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
+    
+    console.log('🔐 authenticateToken - authHeader:', authHeader ? 'present' : 'missing');
+    console.log('🔐 authenticateToken - token:', token ? 'present' : 'missing');
+    
     if (!token) {
+      console.log('🔐 authenticateToken - No token found in headers');
       return res.status(401).json({ error: 'Access token required' })
     }
-    const decoded = await userService.verifyToken(token)
-    req.user = decoded
-    next()
+    
+    // Try to verify token with userService first
+    try {
+      const decoded = await userService.verifyToken(token)
+      console.log('🔐 authenticateToken - Token verified with userService, user:', decoded?.userId || decoded?.id || 'unknown');
+      console.log('🔐 authenticateToken - Full decoded token:', JSON.stringify(decoded, null, 2));
+      req.user = decoded
+      next()
+    } catch (userServiceError) {
+      console.log('🔐 authenticateToken - userService failed, trying jwt directly:', userServiceError.message);
+      
+      // Fallback: try direct JWT verification
+      const jwt = require('jsonwebtoken');
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        console.log('🔐 authenticateToken - Token verified with direct JWT, user:', decoded?.userId || decoded?.id || 'unknown');
+        console.log('🔐 authenticateToken - Full decoded token:', JSON.stringify(decoded, null, 2));
+        req.user = decoded
+        next()
+      } catch (jwtError) {
+        console.error('🔐 authenticateToken - Both verification methods failed:', jwtError.message);
+        return res.status(403).json({ error: 'Invalid or expired token' })
+      }
+    }
   } catch (error) {
+    console.error('🔐 authenticateToken - Error:', error.message);
     return res.status(403).json({ error: 'Invalid or expired token' })
   }
 }
@@ -55,13 +82,22 @@ const getCurrentProject = async (req, res, next) => {
   try {
     // For GitHub endpoints, get projectId from URL params
     const projectId = req.params.projectId || req.headers['x-project-id'] || req.query.project_id
-    console.log('getCurrentProject - projectId:', projectId, 'params:', req.params, 'headers:', req.headers['x-project-id'], 'query:', req.query.project_id);
+    console.log('📁 getCurrentProject - projectId:', projectId);
+    console.log('📁 getCurrentProject - params:', req.params);
+    console.log('📁 getCurrentProject - headers x-project-id:', req.headers['x-project-id']);
+    console.log('📁 getCurrentProject - query project_id:', req.query.project_id);
+    console.log('📁 getCurrentProject - user:', req.user?.userId || req.user?.id || 'unknown');
+    
     if (!projectId) {
+      console.log('📁 getCurrentProject - No project ID found');
       return res.status(400).json({ error: 'Project ID is required' })
     }
+    
+    console.log('📁 getCurrentProject - Using project ID:', projectId);
     req.currentProjectId = projectId
     next()
   } catch (error) {
+    console.error('📁 getCurrentProject - Error:', error.message);
     res.status(500).json({ error: 'Failed to get current project' })
   }
 }
@@ -297,21 +333,36 @@ router.get('/documents/:id/content',
   getCurrentProject,
   requirePermission('KnowledgeBase'),
   async (req, res) => {
+    console.log('📄 content endpoint - user:', req.user?.userId || req.user?.id || 'unknown');
+    console.log('📄 content endpoint - projectId:', req.currentProjectId);
+    console.log('📄 content endpoint - documentId:', req.params.id);
+    console.log('📄 content endpoint - version:', req.query.version);
+    
     try {
       const { version } = req.query
       const knowledgeService = await getKnowledgeService()
       
       let content
-      if (version && req.query.use_git === 'true') {
+      if (version) {
+        console.log('📄 content endpoint - Getting content for specific version:', version);
         content = await knowledgeService.getDocumentContentFromGit(req.params.id, req.currentProjectId, version)
       } else {
-        const versionData = await knowledgeService.getDocumentContent(req.params.id, version)
-        content = versionData?.content || ''
+        console.log('📄 content endpoint - Getting latest content from Git HEAD');
+        // Always get the latest content from Git (HEAD)
+        try {
+          content = await knowledgeService.getDocumentContentFromGit(req.params.id, req.currentProjectId, 'HEAD')
+        } catch (error) {
+          console.log('📄 content endpoint - Git content failed, falling back to database');
+          const versionData = await knowledgeService.getDocumentContent(req.params.id)
+          content = versionData?.content || ''
+        }
       }
       
+      console.log('📄 content endpoint - Content retrieved successfully, length:', content?.length || 0);
       res.json({ content })
     } catch (error) {
-      console.error('Error getting document content:', error)
+      console.error('📄 content endpoint - Error getting document content:', error)
+      console.error('📄 content endpoint - Error stack:', error.stack)
       res.status(500).json({ error: 'Failed to get document content' })
     }
   }
@@ -323,20 +374,80 @@ router.get('/documents/:id/versions',
   getCurrentProject,
   requirePermission('KnowledgeBase'),
   async (req, res) => {
+    console.log('📁 versions endpoint - user:', req.user?.userId || req.user?.id || 'unknown');
+    console.log('📁 versions endpoint - projectId:', req.currentProjectId);
+    console.log('📁 versions endpoint - documentId:', req.params.id);
+    
     try {
       const knowledgeService = await getKnowledgeService()
       
-      let versions
-      if (req.query.use_git === 'true') {
-        versions = await knowledgeService.getDocumentVersionsFromGit(req.params.id, req.currentProjectId)
-      } else {
-        versions = await knowledgeService.getDocumentVersions(req.params.id)
-      }
+      // Use Git versions as single source of truth
+      console.log('📁 versions endpoint - Using Git versions as single source of truth...');
+      const versions = await knowledgeService.getDocumentVersionsFromGit(req.params.id, req.currentProjectId)
       
+      console.log('📁 versions endpoint - Found versions:', versions.length);
       res.json(versions)
     } catch (error) {
-      console.error('Error getting document versions:', error)
+      console.error('📁 versions endpoint - Error getting document versions:', error)
       res.status(500).json({ error: 'Failed to get document versions' })
+    }
+  }
+)
+
+// Create new document version
+router.post('/documents/:id/versions',
+  authenticateToken,
+  getCurrentProject,
+  requirePermission('KnowledgeBase'),
+  async (req, res) => {
+    const timestamp = new Date().toISOString();
+    console.log(`📝 [${timestamp}] create version endpoint - user:`, req.user?.userId || req.user?.id || 'unknown');
+    console.log(`📝 [${timestamp}] create version endpoint - projectId:`, req.currentProjectId);
+    console.log(`📝 [${timestamp}] create version endpoint - documentId:`, req.params.id);
+    console.log(`📝 [${timestamp}] create version endpoint - body:`, req.body);
+    console.log(`📝 [${timestamp}] create version endpoint - content type:`, typeof req.body.content);
+    console.log(`📝 [${timestamp}] create version endpoint - content length:`, req.body.content?.length);
+    console.log(`📝 [${timestamp}] create version endpoint - content preview:`, req.body.content?.substring(0, 100));
+    
+    try {
+      const { content, change_summary, version_number } = req.body
+      
+      if (content === undefined || content === null) {
+        console.log('📝 create version endpoint - ERROR: Content is required');
+        console.log('📝 create version endpoint - req.body keys:', Object.keys(req.body));
+        return res.status(400).json({ error: 'Content is required' })
+      }
+      
+      // Allow empty content but not undefined/null
+      console.log('📝 create version endpoint - Content validation passed');
+
+      console.log('📝 create version endpoint - Getting knowledge service...');
+      const knowledgeService = await getKnowledgeService()
+      console.log('📝 create version endpoint - Knowledge service obtained');
+      
+      console.log('📝 create version endpoint - Calling updateDocumentWithGit...');
+      const result = await knowledgeService.updateDocumentWithGit(
+        req.params.id,
+        req.currentProjectId,
+        content,
+        change_summary || `Version ${version_number || 'new'} - Updated content`,
+        req.user?.userId || req.user?.id,
+        req.user
+      )
+
+      console.log('📝 create version endpoint - result:', result);
+      
+      // Return success with version info
+      res.json({
+        success: true,
+        version: result.version,
+        commitHash: result.commitHash,
+        message: 'Version created successfully'
+      })
+    } catch (error) {
+      console.error('📝 create version endpoint - Error creating version:', error)
+      console.error('📝 create version endpoint - Error stack:', error.stack)
+      res.status(500).json({ error: error.message || 'Failed to create new version' })
     }
   }
 )
@@ -379,10 +490,20 @@ router.get('/documents/:id/diff',
   requirePermission('KnowledgeBase'),
   async (req, res) => {
     try {
+      console.log(`🔍 diff endpoint - START - documentId: ${req.params.id}, projectId: ${req.currentProjectId}`);
+      console.log(`🔍 diff endpoint - old_commit: ${req.query.old_commit}, new_commit: ${req.query.new_commit}`);
+      
       const { old_commit, new_commit } = req.query
       
       if (!old_commit || !new_commit) {
+        console.error(`🔍 diff endpoint - Missing parameters: old_commit=${old_commit}, new_commit=${new_commit}`);
         return res.status(400).json({ error: 'Both old_commit and new_commit are required' })
+      }
+
+      // Validate projectId
+      if (!req.currentProjectId) {
+        console.error(`🔍 diff endpoint - No project ID found`);
+        return res.status(400).json({ error: 'Project ID is required' })
       }
 
       const knowledgeService = await getKnowledgeService()
@@ -393,10 +514,15 @@ router.get('/documents/:id/diff',
         new_commit
       )
 
+      console.log(`🔍 diff endpoint - Success, diff length: ${diff.length}`);
       res.json({ diff })
     } catch (error) {
-      console.error('Error getting document diff:', error)
-      res.status(500).json({ error: 'Failed to get document diff' })
+      console.error('🔍 diff endpoint - Error getting document diff:', error);
+      console.error('🔍 diff endpoint - Error stack:', error.stack);
+      
+      // Return specific error message
+      const errorMessage = error.message || 'Failed to get document diff';
+      res.status(400).json({ error: errorMessage })
     }
   }
 )
@@ -407,9 +533,19 @@ router.get('/documents/:id/download',
   getCurrentProject,
   requirePermission('KnowledgeBase'),
   async (req, res) => {
+    console.log('📥 download endpoint - user:', req.user?.userId || req.user?.id || 'unknown');
+    console.log('📥 download endpoint - projectId:', req.currentProjectId);
+    console.log('📥 download endpoint - documentId:', req.params.id);
+    
     try {
       const knowledgeService = await getKnowledgeService()
       const document = await knowledgeService.getDocument(req.params.id, req.currentProjectId)
+      
+      console.log('📥 download endpoint - document found:', document ? 'yes' : 'no');
+      if (document) {
+        console.log('📥 download endpoint - file path:', document.file_path);
+        console.log('📥 download endpoint - file name:', document.file_name);
+      }
       
       if (!document) {
         return res.status(404).json({ error: 'Document not found' })
@@ -417,7 +553,7 @@ router.get('/documents/:id/download',
 
       res.download(document.file_path, document.file_name)
     } catch (error) {
-      console.error('Error downloading document:', error)
+      console.error('📥 download endpoint - Error downloading document:', error)
       res.status(500).json({ error: 'Failed to download document' })
     }
   }
@@ -429,9 +565,19 @@ router.get('/documents/:id/view',
   getCurrentProject,
   requirePermission('KnowledgeBase'),
   async (req, res) => {
+    console.log('📄 view endpoint - user:', req.user?.userId || req.user?.id || 'unknown');
+    console.log('📄 view endpoint - projectId:', req.currentProjectId);
+    console.log('📄 view endpoint - documentId:', req.params.id);
+    
     try {
       const knowledgeService = await getKnowledgeService()
       const document = await knowledgeService.getDocument(req.params.id, req.currentProjectId)
+      
+      console.log('📄 view endpoint - document found:', document ? 'yes' : 'no');
+      if (document) {
+        console.log('📄 view endpoint - file path:', document.file_path);
+        console.log('📄 view endpoint - file type:', document.file_type);
+      }
       
       if (!document) {
         return res.status(404).json({ error: 'Document not found' })
@@ -439,7 +585,7 @@ router.get('/documents/:id/view',
 
       res.sendFile(document.file_path)
     } catch (error) {
-      console.error('Error viewing document:', error)
+      console.error('📄 view endpoint - Error viewing document:', error)
       res.status(500).json({ error: 'Failed to view document' })
     }
   }
