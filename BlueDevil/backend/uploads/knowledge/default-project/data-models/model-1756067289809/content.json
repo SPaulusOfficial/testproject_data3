@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "id": "model-1756067289809",
+    "type": "data-models",
+    "projectId": "default-project",
+    "createdBy": "439ca6e3-fdfc-4590-88b7-26761a914af2",
+    "createdAt": "2025-08-24T20:28:09.824Z",
+    "updatedAt": "2025-08-24T20:28:09.824Z",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  },
+  "content": {
+    "name": "cdfdsf",
+    "description": "",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  }
+}
