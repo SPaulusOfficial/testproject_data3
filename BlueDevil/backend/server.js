@@ -13,6 +13,8 @@ const knowledgeEndpoints = require('./knowledgeEndpoints');
 const emailEndpoints = require('./emailEndpoints');
 const globalEmailRoutes = require('./globalEmailEndpoints');
 const twoFactorRoutes = require('./twoFactorEndpoints');
+const dataModelEndpoints = require('./dataModelEndpoints');
+const universalKnowledgeEndpoints = require('./universalKnowledgeEndpoints');
 require('dotenv').config({ path: __dirname + '/../.env' });
 
 // Debug logging setup
@@ -240,6 +242,12 @@ app.use(n8nProxy);
 // Knowledge Management API
 app.use('/api/knowledge', knowledgeEndpoints);
 
+// Data Model Management API
+app.use('/api/data-models', dataModelEndpoints);
+
+// Universal Knowledge Management API
+app.use('/api/knowledge', universalKnowledgeEndpoints);
+
 // Email Template Management API
 app.use('/', emailEndpoints);
 app.use('/', globalEmailRoutes);
@@ -314,6 +322,39 @@ app.post('/api/admin/cleanup-2fa', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error cleaning up 2FA codes:', error);
     res.status(500).json({ error: 'Failed to cleanup 2FA codes' });
+  }
+});
+
+// TODO: Remove before go live - Cleanup 2FA for specific user (no auth required)
+app.post('/api/admin/cleanup-2fa-user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🧹 Cleaning up 2FA codes for user: ${userId}`);
+    
+    const pool = await global.getPool();
+    
+    // Delete 2FA codes for specific user
+    const deleteResult = await pool.query(`
+      DELETE FROM two_factor_auth 
+      WHERE user_id = $1
+    `, [userId]);
+    
+    // Reset user's 2FA verification status
+    const resetResult = await pool.query(`
+      UPDATE users 
+      SET last_2fa_verification = NULL 
+      WHERE id = $1
+    `, [userId]);
+    
+    console.log(`✅ Cleaned up ${deleteResult.rowCount} 2FA codes for user ${userId}`);
+    res.json({
+      success: true,
+      message: `Cleaned up ${deleteResult.rowCount} 2FA codes for user ${userId}`
+    });
+    
+  } catch (error) {
+    console.error('Error cleaning up 2FA for user:', error);
+    res.status(500).json({ error: 'Failed to cleanup 2FA for user' });
   }
 });
 
@@ -1089,7 +1130,7 @@ app.get('/api/debug/token', authenticateToken, (req, res) => {
 // =====================================================
 
 // Get all users
-app.get('/api/users', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
+app.get('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     console.log('👥 Fetching all users...');
     debugApi('Fetching all users');
@@ -1236,7 +1277,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Create user
-app.post('/api/users', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
+app.post('/api/users', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     console.log('👤 Creating new user...');
     debugApi('Creating new user', req.body);
@@ -1283,7 +1324,7 @@ app.post('/api/users', authenticateToken, require2FA, requirePermission('UserMan
 });
 
 // Update user
-app.put('/api/users/:id', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
+app.put('/api/users/:id', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { username, email, firstName, lastName, phone, globalRole, customData, metadata } = req.body;
@@ -1338,7 +1379,7 @@ app.put('/api/users/:id', authenticateToken, require2FA, requirePermission('User
 });
 
 // Toggle user active status
-app.patch('/api/users/:id/status', authenticateToken, require2FA, requirePermission('UserManagement'), async (req, res) => {
+app.patch('/api/users/:id/status', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
@@ -1397,7 +1438,7 @@ app.patch('/api/users/:id/status', authenticateToken, require2FA, requirePermiss
 // =====================================================
 
 // Get all projects
-app.get('/api/projects', authenticateToken, require2FA, async (req, res) => {
+app.get('/api/projects', authenticateToken, async (req, res) => {
   try {
     console.log('📁 Fetching all projects...');
     debugApi('Fetching all projects');
@@ -2020,7 +2061,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
     
     const result = await client.query(`
       SELECT * FROM notifications 
-      WHERE user_id = $1 
+      WHERE user_id = $1 AND is_deleted = FALSE
       ORDER BY created_at DESC 
       LIMIT 50
     `, [userId]);
@@ -2029,12 +2070,18 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
     
     const notifications = result.rows.map(notification => ({
       id: notification.id,
+      user_id: notification.user_id,
+      project_id: notification.project_id,
       title: notification.title,
       message: notification.message,
       type: notification.type,
+      priority: notification.priority,
+      metadata: notification.metadata || {},
       isRead: notification.is_read,
-      data: notification.data || {},
-      createdAt: notification.created_at
+      isDeleted: notification.is_deleted,
+      createdAt: notification.created_at,
+      readAt: notification.read_at,
+      deletedAt: notification.deleted_at
     }));
     
     console.log(`✅ Retrieved ${notifications.length} notifications for user ${userId}`);
@@ -2046,7 +2093,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
   }
 });
 
-// Mark notification as read
+// Mark notification as read (PUT - for backward compatibility)
 app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -2081,6 +2128,55 @@ app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
   }
 });
 
+// Mark notification as read (PATCH - for frontend compatibility)
+app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const { is_read = true } = req.body;
+    
+    console.log(`🔔 Marking notification ${id} as ${is_read ? 'read' : 'unread'} for user ${userId}...`);
+    debugApi(`Marking notification ${id} as ${is_read ? 'read' : 'unread'}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      UPDATE notifications 
+      SET is_read = $1, read_at = CASE WHEN $1 = TRUE THEN CURRENT_TIMESTAMP ELSE NULL END
+      WHERE id = $2 AND user_id = $3
+      RETURNING *
+    `, [is_read, id, userId]);
+    
+    client.release();
+    
+    if (result.rows.length === 0) {
+      console.log('❌ Notification not found or access denied');
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    
+    const notification = result.rows[0];
+    console.log('✅ Notification marked as read successfully');
+    res.json({
+      id: notification.id,
+      user_id: notification.user_id,
+      project_id: notification.project_id,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      priority: notification.priority,
+      metadata: notification.metadata || {},
+      is_read: notification.is_read,
+      created_at: notification.created_at,
+      read_at: notification.read_at
+    });
+  } catch (error) {
+    logError(error, `MARK_NOTIFICATION_READ_${req.params.id}`);
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
 // Get unread notification count
 app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req, res) => {
   try {
@@ -2091,7 +2187,10 @@ app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req
     debugApi(`Getting unread count for user ${userId}`);
     
     // Users can only check their own unread count unless admin
-    if (currentUser.userId !== userId && currentUser.globalRole !== 'admin') {
+    if (currentUser.userId !== userId && 
+        currentUser.globalRole !== 'admin' && 
+        currentUser.globalRole !== 'system_admin' && 
+        currentUser.globalRole !== 'project_admin') {
       console.log('❌ Access denied: User can only check own unread count');
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -2102,7 +2201,7 @@ app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req
     const result = await client.query(`
       SELECT COUNT(*) as unread_count 
       FROM notifications 
-      WHERE user_id = $1 AND is_read = false
+      WHERE user_id = $1 AND is_read = false AND is_deleted = false
     `, [userId]);
     
     client.release();
@@ -2115,6 +2214,333 @@ app.get('/api/notifications/:userId/unread-count', authenticateToken, async (req
     logError(error, `GET_UNREAD_COUNT_${req.params.userId}`);
     console.error('Error getting unread count:', error);
     res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// Create notification (requires Notifications permission)
+app.post('/api/notifications', authenticateToken, requirePermission('Notifications'), async (req, res) => {
+  try {
+    const { user_id, project_id, title, message, type, priority, metadata } = req.body;
+    const currentUser = req.user;
+    
+    console.log(`🔔 Creating notification for user ${user_id}...`);
+    debugApi(`Creating notification for user ${user_id}`);
+    
+    // Check if user is creating notification for themselves or has admin role
+    if (currentUser.userId !== user_id && currentUser.globalRole !== 'admin') {
+      console.log('❌ Access denied: User can only create notifications for themselves or admin required');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Title and message are required' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const query = `
+      INSERT INTO notifications (user_id, project_id, title, message, type, priority, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
+    
+    const values = [
+      user_id, 
+      project_id || null, 
+      title, 
+      message, 
+      type || 'info', 
+      priority || 'medium', 
+      metadata ? JSON.stringify(metadata) : null
+    ];
+    
+    const result = await client.query(query, values);
+    client.release();
+    
+    const notification = result.rows[0];
+    
+    console.log(`✅ Created notification ${notification.id} for user ${user_id}`);
+    res.status(201).json({
+      id: notification.id,
+      user_id: notification.user_id,
+      project_id: notification.project_id,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      priority: notification.priority,
+      metadata: notification.metadata || {},
+      is_read: notification.is_read,
+      created_at: notification.created_at
+    });
+  } catch (error) {
+    logError(error, 'CREATE_NOTIFICATION');
+    console.error('Error creating notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// Create notification for specific user (requires Notifications permission)
+app.post('/api/notifications/user/:userId', authenticateToken, requirePermission('Notifications'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { project_id, title, message, type, priority, metadata } = req.body;
+    const currentUser = req.user;
+    
+    console.log(`🔔 Creating notification for user ${userId} by ${currentUser.userId}...`);
+    debugApi(`Creating notification for user ${userId}`);
+    
+    // Only admins or users with Notifications permission can create notifications for other users
+    if (currentUser.globalRole !== 'admin' && currentUser.globalRole !== 'system_admin' && currentUser.globalRole !== 'project_admin') {
+      console.log('❌ Access denied: Admin role or Notifications permission required');
+      return res.status(403).json({ error: 'Admin access or Notifications permission required' });
+    }
+    
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Title and message are required' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // Check if target user exists
+    const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Target user not found' });
+    }
+    
+    const query = `
+      INSERT INTO notifications (user_id, project_id, title, message, type, priority, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
+    
+    const values = [
+      userId, 
+      project_id || null, 
+      title, 
+      message, 
+      type || 'info', 
+      priority || 'medium', 
+      metadata ? JSON.stringify(metadata) : null
+    ];
+    
+    const result = await client.query(query, values);
+    client.release();
+    
+    const notification = result.rows[0];
+    
+    console.log(`✅ Created notification ${notification.id} for user ${userId}`);
+    res.status(201).json({
+      id: notification.id,
+      user_id: notification.user_id,
+      project_id: notification.project_id,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      priority: notification.priority,
+      metadata: notification.metadata || {},
+      is_read: notification.is_read,
+      created_at: notification.created_at
+    });
+  } catch (error) {
+    logError(error, `CREATE_USER_NOTIFICATION_${req.params.userId}`);
+    console.error('Error creating user notification:', error);
+    res.status(500).json({ error: 'Failed to create user notification' });
+  }
+});
+
+// Delete notification
+app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+    
+    console.log(`🔔 Deleting notification ${id}...`);
+    debugApi(`Deleting notification ${id}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    // First get the notification to check ownership
+    const getQuery = `SELECT user_id FROM notifications WHERE id = $1`;
+    const getResult = await client.query(getQuery, [id]);
+    
+    if (getResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    
+    const notification = getResult.rows[0];
+    
+    // Check if user owns the notification or is admin
+    if (notification.user_id !== currentUser.userId && currentUser.globalRole !== 'admin') {
+      client.release();
+      console.log('❌ Access denied: User can only delete own notifications');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const query = `
+      UPDATE notifications 
+      SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+    
+    const result = await client.query(query, [id]);
+    client.release();
+    
+    console.log(`✅ Deleted notification ${id}`);
+    res.json({ success: true, message: 'Notification deleted' });
+  } catch (error) {
+    logError(error, `DELETE_NOTIFICATION_${req.params.id}`);
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
+// Bulk operations for notifications
+app.patch('/api/notifications/bulk', authenticateToken, async (req, res) => {
+  try {
+    const { userId, action, notificationIds } = req.body;
+    const currentUser = req.user;
+    
+    console.log(`🔔 Bulk operation: ${action} for user ${userId}...`);
+    debugApi(`Bulk operation: ${action} for user ${userId}`);
+    
+    // Check if user is performing bulk operation on their own notifications or is admin
+    if (currentUser.userId !== userId && currentUser.globalRole !== 'admin') {
+      console.log('❌ Access denied: User can only perform bulk operations on own notifications');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (!notificationIds || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return res.status(400).json({ error: 'Notification IDs array is required' });
+    }
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    let query;
+    let params;
+    
+    switch (action) {
+      case 'mark-read':
+        query = `
+          UPDATE notifications 
+          SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
+          WHERE id = ANY($1) AND user_id = $2 AND is_deleted = FALSE
+        `;
+        params = [notificationIds, userId];
+        break;
+      case 'mark-unread':
+        query = `
+          UPDATE notifications 
+          SET is_read = FALSE, read_at = NULL
+          WHERE id = ANY($1) AND user_id = $2 AND is_deleted = FALSE
+        `;
+        params = [notificationIds, userId];
+        break;
+      case 'delete':
+        query = `
+          UPDATE notifications 
+          SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP
+          WHERE id = ANY($1) AND user_id = $2 AND is_deleted = FALSE
+        `;
+        params = [notificationIds, userId];
+        break;
+      default:
+        client.release();
+        return res.status(400).json({ error: 'Invalid action. Supported actions: mark-read, mark-unread, delete' });
+    }
+    
+    const result = await client.query(query, params);
+    client.release();
+    
+    console.log(`✅ Bulk operation completed: ${result.rowCount} notifications ${action}`);
+    res.json({ 
+      success: true,
+      updated: result.rowCount,
+      action: action,
+      message: `${result.rowCount} notifications ${action}`
+    });
+  } catch (error) {
+    logError(error, 'BULK_NOTIFICATION_OPERATION');
+    console.error('Error performing bulk operation:', error);
+    res.status(500).json({ error: 'Failed to perform bulk operation' });
+  }
+});
+
+// Mark all notifications as read
+app.patch('/api/notifications/mark-all-read', authenticateToken, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    
+    console.log(`🔔 Marking all notifications as read for user ${currentUser.userId}...`);
+    debugApi(`Marking all notifications as read for user ${currentUser.userId}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      UPDATE notifications 
+      SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1 AND is_read = FALSE AND is_deleted = FALSE
+    `, [currentUser.userId]);
+    
+    client.release();
+    
+    console.log(`✅ Marked ${result.rowCount} notifications as read`);
+    res.json({ 
+      success: true,
+      updated: result.rowCount,
+      message: `Marked ${result.rowCount} notifications as read`
+    });
+  } catch (error) {
+    logError(error, 'MARK_ALL_READ');
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+// Delete all notifications
+app.delete('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { projectId } = req.body || {};
+    
+    console.log(`🔔 Deleting all notifications for user ${currentUser.userId}...`);
+    debugApi(`Deleting all notifications for user ${currentUser.userId}`);
+    
+    const pool = await getPool();
+    const client = await pool.connect();
+    
+    let query = `
+      UPDATE notifications 
+      SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1 AND is_deleted = FALSE
+    `;
+    let params = [currentUser.userId];
+    
+    if (projectId) {
+      query += ` AND project_id = $2`;
+      params.push(projectId);
+    }
+    
+    const result = await client.query(query, params);
+    client.release();
+    
+    console.log(`✅ Deleted ${result.rowCount} notifications`);
+    res.json({ 
+      success: true,
+      deleted: result.rowCount,
+      message: `Deleted ${result.rowCount} notifications`
+    });
+  } catch (error) {
+    logError(error, 'DELETE_ALL_NOTIFICATIONS');
+    console.error('Error deleting all notifications:', error);
+    res.status(500).json({ error: 'Failed to delete all notifications' });
   }
 });
 
@@ -2182,15 +2608,113 @@ app.post('/api/auth/request-password-reset', async (req, res) => {
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`;
     
     // Generate email content
-    const emailContent = passwordService.generateResetEmailContent(resetToken, resetUrl);
+    const emailContent = passwordService.generateResetEmailContent(resetToken, resetUrl, user.username);
     
-    // TODO: Send email using your email service
-    // For now, just log the token (in production, send actual email)
-    console.log(`📧 Password reset email would be sent to: ${email}`);
-    console.log(`🔗 Reset URL: ${resetUrl}?token=${resetToken}`);
-    
-    // In production, replace this with actual email sending:
-    // await emailService.sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
+    // Send email directly using nodemailer
+    try {
+      const nodemailer = require('nodemailer');
+      
+      // Get global email configuration
+      const globalEmailResult = await pool.query(`
+        SELECT * FROM global_email_configuration 
+        WHERE is_active = true 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `);
+      
+      if (globalEmailResult.rows.length > 0) {
+        const emailConfig = globalEmailResult.rows[0];
+        
+        const transporter = nodemailer.createTransport({
+          host: emailConfig.smtp_host,
+          port: emailConfig.smtp_port,
+          secure: emailConfig.smtp_secure,
+          auth: {
+            user: emailConfig.smtp_user,
+            pass: emailConfig.smtp_pass
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        });
+
+        const htmlContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
+              <h1>Salesfive Platform</h1>
+              <h2>Password Reset Request</h2>
+            </div>
+            
+            <div style="padding: 30px; background: #f9f9f9;">
+              <p>Hello ${user.username},</p>
+              
+              <p>We received a request to reset your password for your Salesfive Platform account.</p>
+              
+              <p>If you didn't request this password reset, please ignore this email.</p>
+              
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetUrl}?token=${resetToken}" 
+                   style="background: #0025D1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                  Reset Password
+                </a>
+              </div>
+              
+              <p><strong>Important:</strong></p>
+              <ul>
+                <li>This link will expire in 1 hour</li>
+                <li>You can only use this link once</li>
+                <li>If the link doesn't work, copy and paste this URL into your browser:</li>
+              </ul>
+              
+              <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 3px;">
+                ${resetUrl}?token=${resetToken}
+              </p>
+              
+              <p>Best regards,<br>Salesfive Platform Team</p>
+            </div>
+            
+            <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
+              <p>This is an automated message. Please do not reply to this email.</p>
+            </div>
+          </div>
+        `;
+
+        const textContent = `Password Reset Request - Salesfive Platform
+
+Hello ${user.username},
+
+We received a request to reset your password for your Salesfive Platform account.
+
+If you didn't request this password reset, please ignore this email.
+
+To reset your password, click the following link:
+${resetUrl}?token=${resetToken}
+
+Important:
+- This link will expire in 1 hour
+- You can only use this link once
+
+Best regards,
+Salesfive Platform Team
+
+This is an automated message. Please do not reply to this email.`;
+
+        await transporter.sendMail({
+          from: `"${emailConfig.from_name}" <${emailConfig.from_email}>`,
+          to: email,
+          subject: 'Password Reset Request - Salesfive Platform',
+          html: htmlContent,
+          text: textContent
+        });
+        
+        console.log(`📧 Password reset email sent successfully to: ${email}`);
+      } else {
+        console.log(`⚠️ No global email configuration found, logging reset URL: ${resetUrl}?token=${resetToken}`);
+      }
+    } catch (emailError) {
+      console.error('❌ Error sending password reset email:', emailError);
+      console.log(`🔗 Password reset URL for testing: ${resetUrl}?token=${resetToken}`);
+    }
     
     console.log(`✅ Password reset request processed for: ${email}`);
     res.json({ 
@@ -2268,6 +2792,51 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// Validate reset token
+app.get('/api/auth/validate-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('🔄 Validating reset token...');
+    
+    if (!token) {
+      return res.status(400).json({ valid: false, error: 'Token is required' });
+    }
+    
+    // Validate token
+    const tokenValidation = passwordService.validateResetToken(token);
+    
+    if (tokenValidation.isValid) {
+      res.json({ 
+        valid: true, 
+        email: tokenValidation.email 
+      });
+    } else {
+      res.json({ 
+        valid: false, 
+        error: tokenValidation.error 
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error validating reset token:', error);
+    res.status(500).json({ valid: false, error: 'Failed to validate token' });
+  }
+});
+
+// Get password requirements
+app.get('/api/auth/password-requirements', (req, res) => {
+  res.json({
+    requirements: {
+      minLength: 8,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true
+    }
+  });
+});
+
 // Admin set password for user
 app.post('/api/admin/users/:id/set-password', authenticateToken, requirePermission('UserManagement'), async (req, res) => {
   try {
@@ -2315,12 +2884,22 @@ app.post('/api/admin/users/:id/set-password', authenticateToken, requirePermissi
     if (sendEmail) {
       const emailContent = passwordService.generateAdminPasswordEmailContent(user.email, temporaryPassword);
       
-      // TODO: Send email using your email service
-      console.log(`📧 Admin password set email would be sent to: ${user.email}`);
-      console.log(`🔑 Temporary password: ${temporaryPassword}`);
-      
-      // In production, replace this with actual email sending:
-      // await emailService.sendEmail(user.email, emailContent.subject, emailContent.html, emailContent.text);
+      // Send email using the email template system
+      try {
+        const emailService = require('./emailService');
+        const pool = await getPool();
+        await emailService.sendTemplateEmail(
+          'admin_password_set',
+          user.email,
+          emailContent.parameters,
+          null, // Use global email configuration
+          pool
+        );
+        console.log(`📧 Admin password set email sent to: ${user.email}`);
+      } catch (emailError) {
+        console.error('❌ Error sending admin password set email:', emailError);
+        // Don't fail the request, just log the error
+      }
     }
     
     console.log(`✅ Admin password set successful for: ${user.email}`);

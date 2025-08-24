@@ -20,6 +20,7 @@ interface AuthContextType {
   requires2FA: boolean
   check2FAStatus: () => Promise<void>
   complete2FA: () => void
+  handle2FARequired: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -90,6 +91,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth()
   }, [])
 
+  // Listen for 2FA required events
+  useEffect(() => {
+    const handle2FARequired = () => {
+      console.log('🔐 2FA required event received');
+      setRequires2FA(true);
+    };
+
+    window.addEventListener('2fa-required', handle2FARequired);
+    
+    return () => {
+      window.removeEventListener('2fa-required', handle2FARequired);
+    };
+  }, []);
+
   const login = async (email: string, password: string) => {
     setIsLoading(true)
     try {
@@ -142,6 +157,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Function to handle 2FA requirement from API responses
+  const handle2FARequired = () => {
+    setRequires2FA(true);
+  };
+
   const complete2FA = () => {
     setRequires2FA(false);
   };
@@ -154,7 +174,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     requires2FA,
     check2FAStatus,
-    complete2FA
+    complete2FA,
+    handle2FARequired
   }
 
   return (

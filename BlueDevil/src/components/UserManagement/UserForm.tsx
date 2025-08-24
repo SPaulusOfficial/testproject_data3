@@ -26,7 +26,7 @@ export const UserForm: React.FC<UserFormProps> = ({
     firstName: user?.profile?.firstName || '',
     lastName: user?.profile?.lastName || '',
     globalRole: user?.globalRole || 'user',
-    isActive: user?.isActive ?? true,
+    isActive: user?.isActive === true, // Ensure boolean
     password: '', // Only for create mode
     confirmPassword: '' // Only for create mode
   });
@@ -40,7 +40,7 @@ export const UserForm: React.FC<UserFormProps> = ({
         firstName: user.profile?.firstName || '',
         lastName: user.profile?.lastName || '',
         globalRole: user.globalRole || 'user',
-        isActive: user.isActive ?? true,
+        isActive: user.isActive === true, // Ensure boolean
         password: '', // Keep empty for edit mode
         confirmPassword: '' // Keep empty for edit mode
       });
@@ -155,7 +155,7 @@ export const UserForm: React.FC<UserFormProps> = ({
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors[field]) {
@@ -219,6 +219,23 @@ export const UserForm: React.FC<UserFormProps> = ({
               <p className="text-red-500 text-xs mt-1">{errors.username}</p>
             )}
           </div>
+
+          {/* User ID Display (Edit/View Mode Only) */}
+          {mode !== 'create' && user?.id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                User ID
+              </label>
+              <input
+                type="text"
+                value={user.id}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-md text-gray-600 text-sm font-mono"
+                placeholder="User ID will appear here"
+              />
+              <p className="text-gray-500 text-xs mt-1">System-generated unique identifier</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -328,7 +345,7 @@ export const UserForm: React.FC<UserFormProps> = ({
               <input
                 type="checkbox"
                 checked={formData.isActive}
-                onChange={(e) => handleInputChange('isActive', e.target.checked.toString())}
+                onChange={(e) => handleInputChange('isActive', e.target.checked)}
                 disabled={mode === 'view'}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
               />

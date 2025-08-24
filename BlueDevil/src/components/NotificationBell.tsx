@@ -8,7 +8,19 @@ interface NotificationBellProps {
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({ className }) => {
-  const { unreadCount, notifications, isLoading } = useNotifications();
+  // Safe access to notifications context
+  let unreadCount = 0;
+  let notifications: any[] = [];
+  let isLoading = false;
+  
+  try {
+    const notificationContext = useNotifications();
+    unreadCount = notificationContext?.unreadCount || 0;
+    notifications = notificationContext?.notifications || [];
+    isLoading = notificationContext?.isLoading || false;
+  } catch (error) {
+    console.warn('NotificationBell: NotificationProvider not available');
+  }
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);

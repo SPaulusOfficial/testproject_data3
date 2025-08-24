@@ -179,6 +179,72 @@ Salesfive Platform Team
 
 This is an automated message. Please do not reply to this email.`,
     description: 'Default template for two-factor authentication emails'
+  },
+  {
+    process_name: 'admin_password_set',
+    subject: 'Your Account Has Been Created - Salesfive Platform',
+    html_content: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #0025D1; color: white; padding: 20px; text-align: center;">
+        <h1>Salesfive Platform</h1>
+        <h2>Account Created</h2>
+      </div>
+      
+      <div style="padding: 30px; background: #f9f9f9;">
+        <p>Hello {{{USER_NAME}}},</p>
+        
+        <p>Your account has been created on the Salesfive Platform by an administrator.</p>
+        
+        <p><strong>Your login credentials:</strong></p>
+        <ul>
+          <li><strong>Email:</strong> {{{USER_EMAIL}}}</li>
+          <li><strong>Username:</strong> {{{USERNAME}}}</li>
+          <li><strong>Temporary Password:</strong> {{{TEMP_PASSWORD}}}</li>
+        </ul>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="{{{LOGIN_URL}}}" 
+             style="background: #0025D1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            Login to Platform
+          </a>
+        </div>
+        
+        <p><strong>Important:</strong></p>
+        <ul>
+          <li>Please change your password immediately after your first login</li>
+          <li>This temporary password is only valid for your first login</li>
+          <li>You can change your password in your profile settings</li>
+        </ul>
+        
+        <p>Best regards,<br>Salesfive Platform Team</p>
+      </div>
+      
+      <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
+        <p>This is an automated message. Please do not reply to this email.</p>
+      </div>
+    </div>`,
+    text_content: `Your Account Has Been Created - Salesfive Platform
+
+Hello {{{USER_NAME}}},
+
+Your account has been created on the Salesfive Platform by an administrator.
+
+Your login credentials:
+- Email: {{{USER_EMAIL}}}
+- Username: {{{USERNAME}}}
+- Temporary Password: {{{TEMP_PASSWORD}}}
+
+To access the platform, visit: {{{LOGIN_URL}}}
+
+Important:
+- Please change your password immediately after your first login
+- This temporary password is only valid for your first login
+- You can change your password in your profile settings
+
+Best regards,
+Salesfive Platform Team
+
+This is an automated message. Please do not reply to this email.`,
+    description: 'Default template for admin password set emails'
   }
 ];
 

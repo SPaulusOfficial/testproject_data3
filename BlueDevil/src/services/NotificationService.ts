@@ -311,7 +311,7 @@ export class NotificationService {
   async getUnreadCount(userId: string): Promise<number> {
     try {
       const response = await this.api.get(`/api/notifications/${userId}/unread-count`);
-      return response.count;
+      return response.unreadCount;
     } catch (error) {
       console.error('Failed to get unread count:', error);
       throw new Error('Failed to get unread count');

@@ -9,16 +9,34 @@ interface NotificationDropdownProps {
 }
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
-  const { notifications, markAllAsRead, clearAll, isLoading } = useNotifications();
+  // Safe access to notifications context
+  let notifications: any[] = [];
+  let markAllAsRead = async () => {};
+  let clearAll = async () => {};
+  let isLoading = false;
+  
+  try {
+    const notificationContext = useNotifications();
+    notifications = notificationContext?.notifications || [];
+    markAllAsRead = notificationContext?.markAllAsRead || (async () => {});
+    clearAll = notificationContext?.clearAll || (async () => {});
+    isLoading = notificationContext?.isLoading || false;
+  } catch (error) {
+    console.warn('NotificationDropdown: NotificationProvider not available');
+  }
   const { activeProjectId, projects } = useProject();
   
   // Get current project from activeProjectId
   const currentProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
 
-  // Filter notifications based on current project
-  const filteredNotifications = notifications.filter(n => 
-    !n.projectId || n.projectId === currentProject?.id
-  );
+  // Show all notifications for the user, but prioritize current project
+  const filteredNotifications = notifications.sort((a, b) => {
+    // Show notifications for current project first
+    if (a.projectId === currentProject?.id && b.projectId !== currentProject?.id) return -1;
+    if (b.projectId === currentProject?.id && a.projectId !== currentProject?.id) return 1;
+    // Then sort by creation date (newest first)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();

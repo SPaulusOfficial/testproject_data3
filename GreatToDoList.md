@@ -47,6 +47,26 @@
   - Added comprehensive user interface for permission management
 
 ### New Tasks
+- [x] Implement Git-basiertes Data Modeling System mit kommentierbaren JSON-Dateien
+  - ✅ Erstellt DataModelGitService für Git-basierte Versionierung
+  - ✅ Implementiert JSON-Format mit Kommentaren für Modelle, Objekte, Felder und Beziehungen
+  - ✅ Erstellt Backend API Endpoints für CRUD-Operationen
+  - ✅ Integriert in server.js und permissions.def
+  - ✅ Erstellt vollständigen DataModelManager Frontend mit ReactFlow ERD Designer
+  - ✅ Implementiert visuelle Entity-Relationship-Diagramme mit Drag & Drop
+  - ✅ Hinzugefügt Kommentar-System für alle Elemente (Model, Object, Field, Relationship)
+  - ✅ Implementiert Git History Anzeige
+  - ✅ Hinzugefügt Export-Funktionen (JSON, Salesforce Metadata)
+  - ✅ Integriert in Navigation und Routing
+  - ✅ Hinzugefügt Permission-basierte Zugriffskontrolle
+  - ✅ Verwendet bestehende Libraries: ReactFlow, Dagre, Axios, React Hot Toast
+  - ✅ Ordnerstruktur: data-models/[model-id]/objects/[object-id]/fields/
+  - ✅ Jede Datei ist kommentierbar und versioniert
+  - ✅ **NEU: Git Integration** - Data Models werden als Ordner im Haupt-Repository gespeichert
+  - ✅ **NEU: Objekt-Detail-Modal** - Vollständige Ansicht aller Felder mit Bearbeitung
+  - ✅ **NEU: Feld-Kommentare** - Kommentare können jetzt auch für einzelne Felder hinzugefügt werden
+  - ✅ **NEU: Verbesserte Git History** - Detaillierte Commit-Informationen mit Autor und Zeitstempel
+  - ✅ **NEU: Remote GitHub Integration** - Alle Änderungen werden automatisch zu GitHub gepusht
 - [x] Implement comprehensive email template system
   - Created database schema for email templates, configurations, and usage logs
   - Implemented email-templates package with Handlebars syntax for {{{PLACEHOLDER}}} support
@@ -245,5 +265,14 @@
   - Create permission approval workflows
   - Add permission request system
   - Implement temporary permissions with expiration
+- [ ] Externalize all hardcoded values from platform and backend code
+  - Create comprehensive configuration management system
+  - Move all hardcoded URLs, ports, secrets, and constants to environment variables
+  - Implement configuration validation and default values
+  - Create configuration documentation for deployment
+  - Prioritize security-critical values (JWT secrets, database credentials)
+  - Standardize API base URL configuration across all components
+  - Externalize timeout values, file size limits, and UI constants
+  - Create configuration migration guide for existing deployments
 
 

@@ -88,7 +88,12 @@ class UserService {
         const responseText = await response.text().catch(() => 'Could not read response');
         console.error('❌ Response text:', responseText);
         
-        if (response.status === 403) {
+        // Check if 2FA is required
+        if (response.status === 403 && errorData.requires2FA === true) {
+          // Dispatch a custom event to notify the app that 2FA is required
+          window.dispatchEvent(new CustomEvent('2fa-required'));
+          throw new Error('Two-factor authentication required');
+        } else if (response.status === 403) {
           throw new Error(`Access denied: User Management permission required. Backend says: ${errorData.message || errorData.error}`);
         } else if (response.status === 401) {
           throw new Error('Authentication required');

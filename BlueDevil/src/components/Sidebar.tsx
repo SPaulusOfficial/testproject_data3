@@ -115,6 +115,8 @@ export const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
           icon: Layers,
           children: [
             { label: 'Data Model Design', path: '/solution/data-modeling/design', icon: PencilRuler },
+            { label: 'Data Model Manager', path: '/solution/data-modeling/manager', icon: Database },
+            { label: 'Universal Data Model Manager', path: '/solution/data-modeling/universal', icon: Database },
           ]
         },
         {

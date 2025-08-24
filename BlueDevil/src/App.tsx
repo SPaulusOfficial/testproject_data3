@@ -29,6 +29,9 @@ import { StakeholderRollendefinition } from '@/pages/rampup/StakeholderRollendef
 import ConsentPage from '@/pages/ConsentPage'
 import ProjectParticipants from '@/pages/ProjectParticipants'
 import DataModelingAssistDemo from '@/pages/solution/DataModelingAssistDemo';
+import DataModelManager from '@/components/DataModelManager';
+import UniversalDataModelManager from '@/components/UniversalDataModelManager';
+import UniversalKnowledgeTest from '@/components/UniversalKnowledgeTest';
 import ProcessMiningDemo from '@/pages/solution/ProcessMiningDemo';
 import SolutionDashboardDemo from '@/pages/solution/SolutionDashboardDemo';
 import DataModelSetup from '@/pages/build/DataModelSetup';
@@ -48,6 +51,7 @@ import { PasswordResetRequest } from '@/pages/PasswordResetRequest'
 import { PasswordReset } from '@/pages/PasswordReset'
 import { TwoFactorAuth } from '@/components/Auth/TwoFactorAuth'
 
+
 // Simple Layout wrapper
 const PageWithLayout = ({ children }: { children: React.ReactNode }) => {
   return <Layout>{children}</Layout>
@@ -61,204 +65,227 @@ function App() {
           <ProjectProvider>
             <NotificationProvider>
               <UserManagementProvider>
-            <ProtectedRouteWrapper>
-            {/* <NavigationTracker /> */}
             <Routes>
-            <Route path="/" element={
-              <PageWithLayout>
-                <Dashboard />
-              </PageWithLayout>
-            } />
-            <Route path="/dashboard" element={
-              <PageWithLayout>
-                <Dashboard />
-              </PageWithLayout>
-            } />
-            <Route path="/agents" element={
-              <PageWithLayout>
-                <Agents />
-              </PageWithLayout>
-            } />
-            <Route path="/projects" element={
-              <PageWithLayout>
-                <Projects />
-              </PageWithLayout>
-            } />
-            <Route path="/projects/:id" element={
-              <PageWithLayout>
-                <ProjectDetail />
-              </PageWithLayout>
-            } />
-            <Route path="/workflows" element={
-              <PageWithLayout>
-                <Workflows />
-              </PageWithLayout>
-            } />
-            <Route path="/settings" element={
-              <PageWithLayout>
-                <SettingsPage />
-              </PageWithLayout>
-            } />
-            <Route path="/user-management" element={
-              <PageWithLayout>
-                <UserManagement />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/knowledge/video-zu-text" element={
-              <PageWithLayout>
-                <VideoZuText />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/knowledge/audio-zu-text" element={
-              <PageWithLayout>
-                <AudioZuText />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/knowledge/workshops" element={
-              <PageWithLayout>
-                <Workshops />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/knowledge/workshops/:id" element={
-              <PageWithLayout>
-                <WorkshopDetail />
-              </PageWithLayout>
-            } />
-            <Route path="/knowledge" element={
-              <PageWithLayout>
-                <Knowledge />
-              </PageWithLayout>
-            } />
-
-            <Route path="/pre-sales/rfp-questions/extract" element={
-              <PageWithLayout>
-                <RfPQuestionsExtract />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/rfp-questions/ai-answers" element={
-              <PageWithLayout>
-                <RfPQuestionsAIAnswers />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/project-designer/architektur-sketch" element={
-              <PageWithLayout>
-                <ArchitekturSketch />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/project-designer/projektplan-sketch" element={
-              <PageWithLayout>
-                <ProjektplanSketch />
-              </PageWithLayout>
-            } />
-            <Route path="/pre-sales/project-designer/stakeholder-rollendefinition" element={
-              <PageWithLayout>
-                <StakeholderRollendefinition />
-              </PageWithLayout>
-            } />
-            <Route path="/consent/:projectId/:participantId" element={
-              <PageWithLayout>
-                <ConsentPage />
-              </PageWithLayout>
-            } />
-            <Route path="/projects/:id/participants" element={
-              <PageWithLayout>
-                <ProjectParticipants />
-              </PageWithLayout>
-            } />
-            <Route path="/solution/data-modeling/design" element={
-              <PageWithLayout>
-                <DataModelingAssistDemo />
-              </PageWithLayout>
-            } />
-
-            <Route path="/solution/process-mining/bpmn-analysis" element={
-              <PageWithLayout>
-                <ProcessMiningDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/solution/dashboard" element={
-              <PageWithLayout>
-                <SolutionDashboardDemo />
-              </PageWithLayout>
-            } />
-            {/* Build Routes */}
-            <Route path="/build/data-model-setup" element={
-              <PageWithLayout>
-                <DataModelSetup />
-              </PageWithLayout>
-            } />
-            {/* Demo Routes */}
-            <Route path="/demo/versioned-text-editor" element={
-              <PageWithLayout>
-                <VersionedTextEditorDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/demo/agent-versioning" element={
-              <PageWithLayout>
-                <AgentVersioningDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/demo/process-versioning" element={
-              <PageWithLayout>
-                <ProcessVersioningDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/demo/advanced-diff" element={
-              <PageWithLayout>
-                <AdvancedDiffDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/demo/editor-examples" element={
-              <PageWithLayout>
-                <EditorExamplesDemo />
-              </PageWithLayout>
-            } />
-            <Route path="/demo/editor-examples-full" element={
-              <PageWithLayout>
-                <EditorExamplesFullDemo />
-              </PageWithLayout>
-            } />
-            {/* Notification Demo */}
-            <Route path="/notification-demo" element={
-              <PageWithLayout>
-                <NotificationDemoPage />
-              </PageWithLayout>
-            } />
-            {/* Login Route */}
+            {/* Public Routes (no authentication required) */}
             <Route path="/login" element={
               <LoginForm />
             } />
-            {/* Password Reset Routes */}
             <Route path="/password-reset-request" element={
               <PasswordResetRequest />
             } />
             <Route path="/reset-password" element={
               <PasswordReset />
             } />
-            {/* User Profile */}
-            <Route path="/profile" element={
-              <PageWithLayout>
-                <UserProfilePage />
-              </PageWithLayout>
+            <Route path="/forgot-password" element={
+              <PasswordResetRequest />
             } />
-            {/* Session Demo */}
-            <Route path="/session-demo" element={
-              <PageWithLayout>
-                <SessionDemo />
-              </PageWithLayout>
-            } />
-            {/* Knowledge: Projekt Knowledge */}
-            <Route path="/knowledge/project" element={
-              <PageWithLayout>
-                <div className="text-center py-8">
-                  <h2 className="text-xl font-semibold mb-4">Knowledge Base</h2>
-                  <p className="text-gray-600">Knowledge base functionality has been removed.</p>
-                </div>
-              </PageWithLayout>
-            } />
+            
+            {/* Protected Routes (authentication required) */}
+            <Route path="/*" element={
+              <ProtectedRouteWrapper>
+                <Routes>
+                  {/* <NavigationTracker /> */}
+                  <Route path="/" element={
+                    <PageWithLayout>
+                      <Dashboard />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/dashboard" element={
+                    <PageWithLayout>
+                      <Dashboard />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/agents" element={
+                    <PageWithLayout>
+                      <Agents />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/projects" element={
+                    <PageWithLayout>
+                      <Projects />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/projects/:id" element={
+                    <PageWithLayout>
+                      <ProjectDetail />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/workflows" element={
+                    <PageWithLayout>
+                      <Workflows />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/settings" element={
+                    <PageWithLayout>
+                      <SettingsPage />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/user-management" element={
+                    <PageWithLayout>
+                      <UserManagement />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/knowledge/video-zu-text" element={
+                    <PageWithLayout>
+                      <VideoZuText />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/knowledge/audio-zu-text" element={
+                    <PageWithLayout>
+                      <AudioZuText />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/knowledge/workshops" element={
+                    <PageWithLayout>
+                      <Workshops />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/knowledge/workshops/:id" element={
+                    <PageWithLayout>
+                      <WorkshopDetail />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/knowledge" element={
+                    <PageWithLayout>
+                      <Knowledge />
+                    </PageWithLayout>
+                  } />
 
+                  <Route path="/pre-sales/rfp-questions/extract" element={
+                    <PageWithLayout>
+                      <RfPQuestionsExtract />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/rfp-questions/ai-answers" element={
+                    <PageWithLayout>
+                      <RfPQuestionsAIAnswers />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/project-designer/architektur-sketch" element={
+                    <PageWithLayout>
+                      <ArchitekturSketch />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/project-designer/projektplan-sketch" element={
+                    <PageWithLayout>
+                      <ProjektplanSketch />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/pre-sales/project-designer/stakeholder-rollendefinition" element={
+                    <PageWithLayout>
+                      <StakeholderRollendefinition />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/consent/:projectId/:participantId" element={
+                    <PageWithLayout>
+                      <ConsentPage />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/projects/:id/participants" element={
+                    <PageWithLayout>
+                      <ProjectParticipants />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/solution/data-modeling/design" element={
+                    <PageWithLayout>
+                      <DataModelingAssistDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/solution/data-modeling/manager" element={
+                    <PageWithLayout>
+                      <DataModelManager />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/solution/data-modeling/universal" element={
+                    <PageWithLayout>
+                      <UniversalDataModelManager />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/test/universal-knowledge" element={
+                    <PageWithLayout>
+                      <UniversalKnowledgeTest />
+                    </PageWithLayout>
+                  } />
+
+                  <Route path="/solution/process-mining/bpmn-analysis" element={
+                    <PageWithLayout>
+                      <ProcessMiningDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/solution/dashboard" element={
+                    <PageWithLayout>
+                      <SolutionDashboardDemo />
+                    </PageWithLayout>
+                  } />
+                  {/* Build Routes */}
+                  <Route path="/build/data-model-setup" element={
+                    <PageWithLayout>
+                      <DataModelSetup />
+                    </PageWithLayout>
+                  } />
+                  {/* Demo Routes */}
+                  <Route path="/demo/versioned-text-editor" element={
+                    <PageWithLayout>
+                      <VersionedTextEditorDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/demo/agent-versioning" element={
+                    <PageWithLayout>
+                      <AgentVersioningDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/demo/process-versioning" element={
+                    <PageWithLayout>
+                      <ProcessVersioningDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/demo/advanced-diff" element={
+                    <PageWithLayout>
+                      <AdvancedDiffDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/demo/editor-examples" element={
+                    <PageWithLayout>
+                      <EditorExamplesDemo />
+                    </PageWithLayout>
+                  } />
+                  <Route path="/demo/editor-examples-full" element={
+                    <PageWithLayout>
+                      <EditorExamplesFullDemo />
+                    </PageWithLayout>
+                  } />
+                  {/* Notification Demo */}
+                  <Route path="/notification-demo" element={
+                    <PageWithLayout>
+                      <NotificationDemoPage />
+                    </PageWithLayout>
+                  } />
+
+                  {/* User Profile */}
+                  <Route path="/profile" element={
+                    <PageWithLayout>
+                      <UserProfilePage />
+                    </PageWithLayout>
+                  } />
+                  {/* Session Demo */}
+                  <Route path="/session-demo" element={
+                    <PageWithLayout>
+                      <SessionDemo />
+                    </PageWithLayout>
+                  } />
+                  {/* Knowledge: Projekt Knowledge */}
+                  <Route path="/knowledge/project" element={
+                    <PageWithLayout>
+                      <div className="text-center py-8">
+                        <h2 className="text-xl font-semibold mb-4">Knowledge Base</h2>
+                        <p className="text-gray-600">Knowledge base functionality has been removed.</p>
+                      </div>
+                    </PageWithLayout>
+                  } />
+                </Routes>
+              </ProtectedRouteWrapper>
+            } />
           </Routes>
-            </ProtectedRouteWrapper>
             </UserManagementProvider>
             </NotificationProvider>
           </ProjectProvider>

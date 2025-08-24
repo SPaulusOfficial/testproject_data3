@@ -29,6 +29,9 @@ class GitService {
         const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: projectDir });
         console.log(`🔒 ensureProjectRepo: Current remote: ${remoteUrl.trim()}`);
         
+        // Log current remote for debugging
+        console.log(`🔒 ensureProjectRepo: Current remote: ${remoteUrl.trim()}`);
+        
         // Check if remote points to the correct project repository
         if (!remoteUrl.includes('testproject') && !remoteUrl.includes('knowledge') && !remoteUrl.includes('files')) {
           console.log(`🔒 Repository has different remote: ${remoteUrl}`);
@@ -51,6 +54,35 @@ class GitService {
         await execAsync('git init', { cwd: projectDir });
         await execAsync('git config --local user.name "Salesfive Platform"', { cwd: projectDir });
         await execAsync('git config --local user.email "platform@salesfive.com"', { cwd: projectDir });
+        
+        // Set up remote repository if it exists - use project-specific GitHub integration
+        try {
+          // Check if project has GitHub integration configured
+          const client = await require('./database').pool.connect();
+          try {
+            const result = await client.query(
+              'SELECT settings FROM projects WHERE id = $1',
+              [projectId]
+            );
+            
+            if (result.rows.length > 0 && result.rows[0].settings?.github?.repoUrl) {
+              const githubSettings = result.rows[0].settings.github;
+              const remoteUrl = githubSettings.cloneUrl || githubSettings.repoUrl;
+              
+              if (remoteUrl) {
+                await execAsync(`git remote add origin ${remoteUrl}`, { cwd: projectDir });
+                console.log(`🔒 ensureProjectRepo: Added project-specific remote origin: ${remoteUrl}`);
+              }
+            } else {
+              console.log(`🔒 ensureProjectRepo: No GitHub integration configured for project ${projectId}`);
+              console.log(`🔒 ensureProjectRepo: Please configure GitHub integration in Project Settings`);
+            }
+          } finally {
+            client.release();
+          }
+        } catch (remoteError) {
+          console.log(`🔒 ensureProjectRepo: Could not add remote: ${remoteError.message}`);
+        }
         
         // Create .gitignore
         await fs.writeFile(path.join(projectDir, '.gitignore'), '*.tmp\n*.log\n.DS_Store\n');
@@ -97,9 +129,9 @@ class GitService {
       await fs.writeFile(fullPath, content);
       console.log(`📁 addFile: File written successfully`);
       
-      // Add to git
+      // Add to git (force to override .gitignore)
       console.log(`📁 addFile: Adding file to git...`);
-      await execAsync(`git add "${fileName}"`, { cwd: projectDir });
+      await execAsync(`git add -f "${fileName}"`, { cwd: projectDir });
       console.log(`📁 addFile: File added to git index`);
       
       // Commit with author info - use local git config
@@ -132,8 +164,50 @@ class GitService {
       try {
         const { stdout: remoteUrl } = await execAsync('git remote get-url origin', { cwd: projectDir });
         if (remoteUrl.trim()) {
-          console.log(`📁 addFile: Remote exists, but skipping push for now`);
-          // Skip push for now to avoid authentication issues
+          console.log(`📁 addFile: Remote exists, attempting to push...`);
+          try {
+            // First, check what branch we're on and what the remote default branch is
+            const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: projectDir });
+            const { stdout: remoteDefaultBranch } = await execAsync('git remote show origin | grep "HEAD branch" | cut -d" " -f5', { cwd: projectDir });
+            
+            console.log(`📁 addFile: Current branch: ${currentBranch.trim()}, Remote default: ${remoteDefaultBranch.trim()}`);
+            
+            // Push to the remote default branch
+            await execAsync(`git push origin ${currentBranch.trim()}:${remoteDefaultBranch.trim()}`, { cwd: projectDir });
+            console.log(`📁 addFile: Successfully pushed to remote repository`);
+          } catch (pushError) {
+            console.log(`📁 addFile: Push failed: ${pushError.message}`);
+            
+            // Try to pull first if remote has changes
+            if (pushError.message.includes('fetch first') || pushError.message.includes('rejected')) {
+              console.log(`📁 addFile: Remote has changes, pulling first...`);
+              try {
+                const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: projectDir });
+                const { stdout: remoteDefaultBranch } = await execAsync('git remote show origin | grep "HEAD branch" | cut -d" " -f5', { cwd: projectDir });
+                
+                // Configure git to use merge strategy for pulls
+                await execAsync('git config pull.rebase false', { cwd: projectDir });
+                
+                await execAsync(`git pull origin ${remoteDefaultBranch.trim()} --allow-unrelated-histories`, { cwd: projectDir });
+                await execAsync(`git push origin ${currentBranch.trim()}:${remoteDefaultBranch.trim()}`, { cwd: projectDir });
+                console.log(`📁 addFile: Successfully pushed after pull`);
+              } catch (pullPushError) {
+                console.log(`📁 addFile: Pull and push failed: ${pullPushError.message}`);
+                
+                // If pull fails, try force push as last resort
+                try {
+                  console.log(`📁 addFile: Attempting force push as last resort...`);
+                  const { stdout: currentBranch } = await execAsync('git branch --show-current', { cwd: projectDir });
+                  const { stdout: remoteDefaultBranch } = await execAsync('git remote show origin | grep "HEAD branch" | cut -d" " -f5', { cwd: projectDir });
+                  
+                  await execAsync(`git push origin ${currentBranch.trim()}:${remoteDefaultBranch.trim()} --force`, { cwd: projectDir });
+                  console.log(`📁 addFile: Successfully force pushed to remote repository`);
+                } catch (forcePushError) {
+                  console.log(`📁 addFile: Force push also failed: ${forcePushError.message}`);
+                }
+              }
+            }
+          }
         } else {
           console.log(`📁 addFile: No remote configured, skipping push`);
         }
@@ -174,8 +248,8 @@ class GitService {
       await fs.writeFile(fullPath, content);
       console.log(`📝 updateFile: File content written successfully`);
       
-      // Add only the specific file to git - no more batch commits
-      await execAsync(`git add "${fileName}"`, { cwd: projectDir });
+      // Add only the specific file to git - no more batch commits (force to override .gitignore)
+      await execAsync(`git add -f "${fileName}"`, { cwd: projectDir });
       console.log(`📝 updateFile: File ${fileName} added to git index`);
       
       // Commit with author info - use local git config
@@ -412,6 +486,15 @@ class GitService {
       return stdout.trim();
     } catch (error) {
       return null;
+    }
+  }
+
+  async execGitCommand(projectDir, command) {
+    try {
+      const { stdout } = await execAsync(`git ${command}`, { cwd: projectDir });
+      return { stdout: stdout.trim() };
+    } catch (error) {
+      throw new Error(`Git command failed: ${error.message}`);
     }
   }
 

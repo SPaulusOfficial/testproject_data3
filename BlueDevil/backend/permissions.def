@@ -23,6 +23,11 @@ SystemStatus
 # AI Features
 
 # Data Management
+DataModeling
+DataModelCreation
+DataModelEditing
+DataModelDeletion
+DataModelExport
 
 # Reporting
 

@@ -1139,3 +1139,42 @@ CREATE TABLE IF NOT EXISTS two_factor_auth (
 -- Create index for better performance
 CREATE INDEX IF NOT EXISTS idx_2fa_user_id ON two_factor_auth(user_id);
 CREATE INDEX IF NOT EXISTS idx_2fa_expires_at ON two_factor_auth(expires_at);
+
+-- =====================================================
+-- UNIVERSAL KNOWLEDGE MANAGEMENT
+-- =====================================================
+
+-- Universal Knowledge Content Table
+CREATE TABLE IF NOT EXISTS knowledge_content (
+  id VARCHAR(255) PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  content_type VARCHAR(50) NOT NULL, -- 'document', 'data-model', 'diagram', etc.
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_by UUID REFERENCES users(id),
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_knowledge_content_project_id ON knowledge_content(project_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_content_type ON knowledge_content(content_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_content_created_by ON knowledge_content(created_by);
+CREATE INDEX IF NOT EXISTS idx_knowledge_content_updated_at ON knowledge_content(updated_at);
+
+-- Insert permission definitions for universal knowledge management
+INSERT INTO permission_definitions (resource, action, description, category, is_system) VALUES
+('KnowledgeManagement', 'view', 'View all knowledge content', 'knowledge', true),
+('KnowledgeManagement', 'create', 'Create new knowledge content', 'knowledge', true),
+('KnowledgeManagement', 'edit', 'Edit existing knowledge content', 'knowledge', true),
+('KnowledgeManagement', 'delete', 'Delete knowledge content', 'knowledge', true),
+('KnowledgeManagement', 'export', 'Export knowledge content', 'knowledge', true),
+('DataModeling', 'view', 'View data models', 'knowledge', true),
+('DataModeling', 'create', 'Create new data models', 'knowledge', true),
+('DataModeling', 'edit', 'Edit existing data models', 'knowledge', true),
+('DataModeling', 'delete', 'Delete data models', 'knowledge', true),
+('DataModeling', 'export', 'Export data models', 'knowledge', true)
+ON CONFLICT (resource, action) DO NOTHING;

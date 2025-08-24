@@ -144,11 +144,11 @@ class PasswordService {
   }
 
   // Generate email content for password reset
-  generateResetEmailContent(token, resetUrl) {
+  generateResetEmailContent(token, resetUrl, username = 'User') {
     return {
       subject: 'Password Reset Request - Salesfive Platform',
       parameters: {
-        USER_NAME: 'User', // Will be replaced with actual user name
+        USER_NAME: username,
         RESET_URL: `${resetUrl}?token=${token}`,
         EXPIRY_HOURS: '1'
       }

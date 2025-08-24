@@ -27,6 +27,11 @@ SecuritySettings
 AccessControl
 KnowledgeBase
 WorkshopManagement
+DataModeling
+DataModelCreation
+DataModelEditing
+DataModelDeletion
+DataModelExport
 APIAccess
 
 # User Management Administrator - Can manage users but not system settings
@@ -46,6 +51,11 @@ EmailConfiguration
 AuditLogs
 KnowledgeBase
 WorkshopManagement
+DataModeling
+DataModelCreation
+DataModelEditing
+DataModelDeletion
+DataModelExport
 
 # Project Administrator - Can manage projects and their data
 [ProjectAdministrator]
@@ -60,3 +70,8 @@ EmailTemplates
 EmailConfiguration
 KnowledgeBase
 WorkshopManagement
+DataModeling
+DataModelCreation
+DataModelEditing
+DataModelDeletion
+DataModelExport

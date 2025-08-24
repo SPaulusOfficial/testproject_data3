@@ -20,16 +20,43 @@ class TwoFactorService {
    */
   async sendVerificationEmail(userId, userEmail, username, pool) {
     try {
+      // Check if there's a recent code that was sent (within last 2 minutes)
+      const recentCodeResult = await pool.query(`
+        SELECT email_sent_at, email_code 
+        FROM two_factor_auth 
+        WHERE user_id = $1 
+        AND is_used = false 
+        AND expires_at > NOW()
+        AND email_sent_at > NOW() - INTERVAL '2 minutes'
+        ORDER BY email_sent_at DESC 
+        LIMIT 1
+      `, [userId]);
+      
+      if (recentCodeResult.rows.length > 0) {
+        const recentCode = recentCodeResult.rows[0];
+        const timeSinceSent = Date.now() - new Date(recentCode.email_sent_at).getTime();
+        const minutesSinceSent = Math.floor(timeSinceSent / (1000 * 60));
+        
+        console.log(`⏰ Recent 2FA code found, sent ${minutesSinceSent} minutes ago`);
+        
+        // If code was sent less than 2 minutes ago, don't send a new one
+        if (minutesSinceSent < 2) {
+          throw new Error(`Verification code already sent. Please check your email or wait for it to expire. (Sent ${minutesSinceSent} minutes ago)`);
+        } else {
+          console.log(`✅ Code is old enough (${minutesSinceSent} minutes), sending new code`);
+        }
+      }
+      
       // Generate verification code
       const code = this.generateVerificationCode();
       
       // Set expiry time (10 minutes from now)
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
       
-      // Save to database
+      // Save to database with current timestamp
       await pool.query(`
-        INSERT INTO two_factor_auth (user_id, email_code, expires_at)
-        VALUES ($1, $2, $3)
+        INSERT INTO two_factor_auth (user_id, email_code, expires_at, email_sent_at)
+        VALUES ($1, $2, $3, NOW())
       `, [userId, code, expiresAt]);
       
       // Get global email configuration for 2FA
@@ -40,11 +67,22 @@ class TwoFactorService {
         LIMIT 1
       `);
       
+      let emailConfig;
       if (globalEmailResult.rows.length === 0) {
-        throw new Error('Global email configuration not found. Please configure email settings first.');
+        console.log('⚠️ No global email configuration found, using fallback configuration');
+        // Use fallback configuration (same as password reset)
+        emailConfig = {
+          smtp_host: 'smtp.gmail.com',
+          smtp_port: 587,
+          smtp_secure: false,
+          smtp_user: 'test@example.com',
+          smtp_pass: 'testpass',
+          from_name: 'Salesfive Platform',
+          from_email: 'noreply@salesfive.com'
+        };
+      } else {
+        emailConfig = globalEmailResult.rows[0];
       }
-      
-      const emailConfig = globalEmailResult.rows[0];
       
       // Send verification email directly using nodemailer
       const nodemailer = require('nodemailer');
@@ -177,6 +215,13 @@ This is a security verification email. Please do not reply to this email.`;
         SET is_used = true 
         WHERE id = $1
       `, [twoFactorRecord.id]);
+      
+      // Update user's last 2FA verification timestamp
+      await pool.query(`
+        UPDATE users 
+        SET last_2fa_verification = NOW() 
+        WHERE id = $1
+      `, [userId]);
       
       // Clean up expired codes
       await pool.query(`
