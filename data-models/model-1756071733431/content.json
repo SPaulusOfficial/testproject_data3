@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "id": "model-1756071733431",
+    "type": "data-models",
+    "projectId": "default-project",
+    "createdBy": "439ca6e3-fdfc-4590-88b7-26761a914af2",
+    "createdAt": "2025-08-24T21:42:13.437Z",
+    "updatedAt": "2025-08-24T21:42:13.437Z",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  },
+  "content": {
+    "name": "Test",
+    "description": "",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  }
+}
