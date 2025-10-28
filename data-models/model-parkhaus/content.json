@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "id": "model-parkhaus",
+    "type": "data-models",
+    "projectId": "TestStefan",
+    "createdBy": "987b6bde-824e-4bb2-a7b0-b28e7df2bb78",
+    "createdAt": "2025-10-28T12:25:03.576Z",
+    "updatedAt": "2025-10-28T12:25:03.576Z",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  },
+  "content": {
+    "name": "Parkhaus",
+    "description": "",
+    "version": "1.0.0",
+    "status": "draft",
+    "objects": [],
+    "relationships": []
+  }
+}
