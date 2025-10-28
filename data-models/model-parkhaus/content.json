@@ -4,19 +4,148 @@
     "type": "data-models",
     "projectId": "TestStefan",
     "createdBy": "987b6bde-824e-4bb2-a7b0-b28e7df2bb78",
-    "createdAt": "2025-10-28T12:25:03.576Z",
-    "updatedAt": "2025-10-28T12:25:03.576Z",
+    "createdAt": "2025-10-28T12:30:08.652Z",
+    "updatedAt": "2025-10-28T12:30:08.652Z",
     "version": "1.0.0",
     "status": "draft",
-    "objects": [],
+    "objects": [
+      {
+        "id": "obj-1",
+        "name": "ParkingFacility",
+        "display_name": "ParkingFacility",
+        "api_name": "ParkingFacility",
+        "description": "Create a Parking Facility object to represent each parking location with relevant details.",
+        "object_type": "standard",
+        "fields": [
+          {
+            "id": "field-1",
+            "name": "occupancy_rate",
+            "display_name": "occupancy_rate",
+            "field_type": "number",
+            "data_type": "decimal",
+            "is_required": false,
+            "is_unique": false,
+            "description": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z"
+          },
+          {
+            "id": "field-2",
+            "name": "digital_process_status",
+            "display_name": "digital_process_status",
+            "field_type": "picklist",
+            "data_type": "string",
+            "is_required": true,
+            "is_unique": false,
+            "description": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z"
+          }
+        ],
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      }
+    ],
     "relationships": []
   },
   "content": {
     "name": "Parkhaus",
     "description": "",
-    "version": "1.0.0",
-    "status": "draft",
-    "objects": [],
-    "relationships": []
+    "objects": [
+      {
+        "id": "obj-1",
+        "name": "ParkingFacility",
+        "display_name": "ParkingFacility",
+        "api_name": "ParkingFacility",
+        "description": "Create a Parking Facility object to represent each parking location with relevant details.",
+        "object_type": "standard",
+        "fields": [
+          {
+            "id": "field-1",
+            "name": "occupancy_rate",
+            "display_name": "occupancy_rate",
+            "field_type": "number",
+            "data_type": "decimal",
+            "is_required": false,
+            "is_unique": false,
+            "description": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z"
+          },
+          {
+            "id": "field-2",
+            "name": "digital_process_status",
+            "display_name": "digital_process_status",
+            "field_type": "picklist",
+            "data_type": "string",
+            "is_required": true,
+            "is_unique": false,
+            "description": "",
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z"
+          }
+        ],
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "relationships": [],
+    "metadata": {
+      "id": "model-parkhaus",
+      "type": "data-models",
+      "projectId": "TestStefan",
+      "createdBy": "987b6bde-824e-4bb2-a7b0-b28e7df2bb78",
+      "createdAt": "2025-10-28T12:25:03.576Z",
+      "updatedAt": "2025-10-28T12:25:03.576Z",
+      "version": "1.0.0",
+      "status": "draft",
+      "objects": [],
+      "relationships": []
+    },
+    "content": {
+      "name": "Parkhaus",
+      "description": "",
+      "version": "1.0.0",
+      "status": "draft",
+      "objects": [
+        {
+          "id": "obj-1",
+          "name": "ParkingFacility",
+          "display_name": "ParkingFacility",
+          "api_name": "ParkingFacility",
+          "description": "Create a Parking Facility object to represent each parking location with relevant details.",
+          "object_type": "standard",
+          "fields": [
+            {
+              "id": "field-1",
+              "name": "occupancy_rate",
+              "display_name": "occupancy_rate",
+              "field_type": "number",
+              "data_type": "decimal",
+              "is_required": false,
+              "is_unique": false,
+              "description": "",
+              "created_at": "2025-01-01T00:00:00Z",
+              "updated_at": "2025-01-01T00:00:00Z"
+            },
+            {
+              "id": "field-2",
+              "name": "digital_process_status",
+              "display_name": "digital_process_status",
+              "field_type": "picklist",
+              "data_type": "string",
+              "is_required": true,
+              "is_unique": false,
+              "description": "",
+              "created_at": "2025-01-01T00:00:00Z",
+              "updated_at": "2025-01-01T00:00:00Z"
+            }
+          ],
+          "created_at": "2025-01-01T00:00:00Z",
+          "updated_at": "2025-01-01T00:00:00Z"
+        }
+      ],
+      "relationships": []
+    }
   }
 }
